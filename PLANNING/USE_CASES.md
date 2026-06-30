@@ -95,6 +95,34 @@
 * **Objetivo:** Bloquear novas perguntas ao RAG se o usuário ultrapassar os limites semanais/mensais do seu plano de assinatura (FREE, BASIC, PREMIUM).
 * **Pré-condições:** Usuário autenticado enviando uma nova requisição ao chat.
 
-```
-[ Espaço em Branco — A completar com as regras de limite do plano ]
-```
+#### Regras de Cotas (Lógica de Negócio):
+1. **Plano Free (Gratuito):**
+   - **Limite:** 3 perguntas por semana.
+   - **Mecanismo:** Calculado dinamicamente no banco fazendo um `COUNT` das mensagens do usuário criadas nos últimos 7 dias. Não requer cronjob para reset.
+2. **Plano Básico:**
+   - **Limite:** 100 perguntas por mês.
+   - **Mecanismo:** Campo `question_count` na tabela de usuários do Supabase. O faturamento e o ciclo de reset são controlados pelo Stripe.
+3. **Plano Premium:**
+   - **Limite:** 1.000 perguntas por mês.
+   - **Mecanismo:** Campo `question_count` na tabela de usuários do Supabase.
+
+#### Ciclo de Reset das Cotas:
+* **Reset por Faturamento (Básico/Premium):** Quando o webhook do Stripe reporta renovação de assinatura com sucesso (`invoice.paid`) ou upgrade de plano (`customer.subscription.updated`), a coluna `question_count` do usuário é resetada para `0` no Supabase.
+* **Downgrade:** Se o usuário cancela ou deixa de pagar, o webhook do Stripe altera o plano para `free`. A partir desse momento, aplica-se a regra dinâmica de 3 perguntas por semana.
+
+#### Fluxo de Enforcamento (Middleware / Endpoint `/ask`):
+1. O usuário submete uma pergunta (`POST /conversations/{id}/ask`).
+2. O validador do backend FastAPI lê o perfil do usuário (`UserProfile`) e verifica se `plan` e limites são compatíveis:
+   - Se `plan == "free"`: Faz query para contar mensagens nos últimos 7 dias. Se count >= 3, **bloqueia**.
+   - Se `plan in ("basic", "premium")`: Se `question_count` >= limite do plano, **bloqueia**.
+3. **Mapeamento de Erro HTTP:**
+   - Em caso de bloqueio, o FastAPI retorna **HTTP 402 Payment Required** com um corpo padronizado:
+     ```json
+     {
+       "detail": "Limite de mensagens atingido para o plano atual.",
+       "code": "LIMIT_EXCEEDED",
+       "plan": "free"
+     }
+     ```
+   - O app Flutter intercepta o HTTP 402 e exibe automaticamente o modal de upgrade (`subscription_screen.dart`).
+4. Se o limite não foi excedido, o processamento do grafo segue e, após a execução com sucesso do Writer/Judge, o contador `question_count` é incrementado em 1.
