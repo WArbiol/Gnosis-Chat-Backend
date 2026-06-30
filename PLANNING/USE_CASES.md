@@ -58,12 +58,26 @@
 ---
 
 ### UC02: Responder a Esclarecimento (Human-in-the-Loop)
-* **Objetivo:** Retomar o processamento do grafo que foi pausado pelo nó `ask_user` após o usuário fornecer a informação solicitada.
-* **Pré-condições:** Uma sessão ativa pausada e aguardando entrada do usuário (`clarification_question` preenchido no checkpointer).
+* **Objetivo:** Retomar o processamento do grafo que foi pausado pelo nó `Ask User` após o usuário fornecer a informação solicitada.
+* **Pré-condições:** Uma sessão ativa pausada e aguardando entrada do usuário (com o estado da sessão persistido no PostgresSaver/Supabase via `thread_id`).
 
-```
-[ Espaço em Branco — A completar com a lógica de recuperação e retoma do grafo ]
-```
+#### Fluxo Principal de Sucesso:
+1. O usuário visualiza no app a pergunta clarificadora gerada anteriormente pelo RAG (ex: *"Você quer saber sobre o Selo de Salomão ou o Selo do Apocalipse?"*).
+2. O usuário envia sua resposta (ex: *"Selo de Salomão"*).
+3. O cliente (Flutter) dispara uma requisição HTTP POST para `/api/v1/conversations/{id}/clarify` enviando a resposta textual.
+4. O backend FastAPI recebe a resposta e o `thread_id` (vinculado ao `conversation_id`).
+5. O FastAPI busca no checkpointer do Postgres o estado salvo do grafo para essa conversa específica (`thread_id`).
+6. O estado é carregado e a resposta do usuário é injetada em um campo temporário do `GraphState` (ex: `user_clarification`).
+7. O backend envia um sinal para o LangGraph retomar a execução (`compiled_graph.update_state` seguido de continuação da execução).
+8. **Nó 1: Orchestrator** é re-executado:
+   - Lê a resposta do usuário em `user_clarification`.
+   - Modifica os `metadata_filters` baseados na escolha do usuário (ex: limita `books` ou adiciona palavras-chave específicas).
+   - Avança para o nó **Researcher** para retomar o fluxo padrão de RAG com o contexto agora limpo e sem ambiguidade.
+9. O processamento prossegue até o final do grafo normalmente (Critique ➔ Writer ➔ Judge ➔ Recap ➔ END).
+10. O fluxo retorna via streaming de SSE até a conclusão.
+
+#### Fluxo de Exceção (Abandono):
+* Se o usuário decidir não responder à pergunta esclarecedora e simplesmente digitar uma nova pergunta completamente diferente no chat, o Flutter detecta isso e chama o endpoint padrão `/ask` (UC01) criando um novo turno limpo (uma nova sessão no LangGraph), o que sobrescreve o checkpoint pausado anteriormente.
 
 ---
 
