@@ -1,17 +1,117 @@
-from fastapi import APIRouter, Depends
+import json
+import logging
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.core.security import get_current_user
-from app.schemas.chat import ChatRequest
-from app.schemas.conversation import MessageResponse
+from app.core.dependencies import get_supabase_client
+from app.schemas.chat import ChatRequest, UIFilters
 from app.schemas.user import UserProfile
-from app.services import chat_service
+from app.domain.exceptions import QuotaExceededException
 
+# Use Cases
+from app.application.use_cases.ask_rag_use_case import AskRagUseCase
+from app.application.use_cases.clarify_use_case import ClarifyUseCase
+
+# Adapters
+from app.infrastructure.google.gemini_llm import GeminiLLM
+from app.infrastructure.qdrant.qdrant_vector_store import QdrantVectorStore
+from app.infrastructure.google.vertex_ranking import VertexRanking
+from app.infrastructure.supabase.supabase_database import SupabaseDatabase
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Instanciar adaptadores singleton de APIs externas
+llm_gateway = GeminiLLM()
+vector_store_gateway = QdrantVectorStore()
+reranker_gateway = VertexRanking()
 
-@router.post("/ask", response_model=MessageResponse)
+def get_ask_rag_use_case() -> AskRagUseCase:
+    supabase_client = get_supabase_client()
+    database_gateway = SupabaseDatabase(supabase_client)
+    return AskRagUseCase(
+        llm=llm_gateway,
+        vector_store=vector_store_gateway,
+        reranker=reranker_gateway,
+        database=database_gateway
+    )
+
+def get_clarify_use_case() -> ClarifyUseCase:
+    supabase_client = get_supabase_client()
+    database_gateway = SupabaseDatabase(supabase_client)
+    return ClarifyUseCase(
+        llm=llm_gateway,
+        vector_store=vector_store_gateway,
+        reranker=reranker_gateway,
+        database=database_gateway
+    )
+
+class ClarifyRequest(BaseModel):
+    """Payload de entrada para responder ao Human-in-the-Loop."""
+    conversation_id: UUID = Field(..., description="ID da conversa sob intervenção.")
+    user_response: str = Field(..., min_length=1, max_length=2000, description="Texto de resposta de esclarecimento.")
+
+@router.post("/ask")
 async def ask(
     request: ChatRequest,
     user: UserProfile = Depends(get_current_user),
-) -> MessageResponse:
-    return await chat_service.ask(request, user)
+    use_case: AskRagUseCase = Depends(get_ask_rag_use_case)
+):
+    """Realiza uma pergunta ao chat e inicia o fluxo RAG agêntico via Server-Sent Events (SSE)."""
+    
+    async def event_generator():
+        try:
+            async for event in use_case.execute(
+                query=request.query,
+                user_id=user.id,
+                ui_filters=request.ui_filters or UIFilters(),
+                conversation_id=str(request.conversation_id) if request.conversation_id else None
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except QuotaExceededException as qe:
+            error_payload = {
+                "event": "error",
+                "code": "PAYMENT_REQUIRED",
+                "message": str(qe)
+            }
+            yield f"data: {json.dumps(error_payload)}\n\n"
+        except Exception as e:
+            logger.error(f"Erro no streaming do RAG: {e}", exc_info=True)
+            error_payload = {
+                "event": "error",
+                "code": "INTERNAL_ERROR",
+                "message": "Ocorreu um erro interno ao processar sua pergunta."
+            }
+            yield f"data: {json.dumps(error_payload)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@router.post("/clarify")
+async def clarify(
+    request: ClarifyRequest,
+    user: UserProfile = Depends(get_current_user),
+    use_case: ClarifyUseCase = Depends(get_clarify_use_case)
+):
+    """Responde à pergunta clarificadora (HIL) e retoma a execução do grafo em tempo real via SSE."""
+    
+    async def event_generator():
+        try:
+            async for event in use_case.execute(
+                conversation_id=str(request.conversation_id),
+                user_response=request.user_response,
+                user_id=user.id
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as e:
+            logger.error(f"Erro no streaming da clarificação HIL: {e}", exc_info=True)
+            error_payload = {
+                "event": "error",
+                "code": "INTERNAL_ERROR",
+                "message": "Ocorreu um erro ao retomar o processamento da clarificação."
+            }
+            yield f"data: {json.dumps(error_payload)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
