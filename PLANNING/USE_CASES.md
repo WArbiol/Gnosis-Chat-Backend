@@ -29,9 +29,31 @@
 * **Objetivo:** Processar uma nova pergunta através do orquestrador de múltiplos agentes e retornar a resposta e status em tempo real.
 * **Pré-condições:** Usuário autenticado, conexão com a internet ativa, limite de mensagens do plano não atingido.
 
-```
-[ Espaço em Branco — A completar com o fluxo principal de sucesso e fluxos secundários ]
-```
+#### Fluxo Principal de Sucesso:
+1. O cliente (Flutter) faz uma chamada HTTP POST para `/api/v1/conversations/{id}/ask` passando a `query` e filtros opcionais na UI (`ui_filters` contendo `book_name`, `author`, `chamber`, `chapter`).
+2. O middleware do backend FastAPI valida o token JWT do usuário, resolve o `user_id` e verifica as cotas do plano.
+3. O FastAPI inicializa o grafo do LangGraph, salvando no `GraphState` os filtros iniciais `ui_filters` e passando a câmara de acesso do usuário (`chamber_level`) como restrição intransponível.
+4. **Nó 1: Orchestrator** analisa a query e resolve os metadados de filtro:
+   - *Filtros Implícitos:* Extrai referências a livros, autores ou capítulos escritas na query do usuário.
+   - *Filtros Autônomos:* Se deduzir que a resposta depende de um livro ou contexto específico, injeta esses filtros de forma autônoma para refinar o retrieval.
+   - Consolida as restrições e as armazena no campo `metadata_filters` do estado do grafo.
+   - Determina se a pergunta necessita de RAG (se sim, gera sub-queries para rotear ao Researcher; se não, decide a rota `DIRECT_RESPONSE`).
+5. **Nó 2: Researcher(s)** (podendo rodar em paralelo se houver múltiplas sub-queries):
+   - Cada instância aplica os `metadata_filters` consolidados para filtrar os chunks no Qdrant.
+   - Executa a busca vetorial para retornar ~30 chunks e os envia para a Vertex AI Ranking API para re-ranking, mantendo os top ~10 mais relevantes.
+6. **Nó 3: Critique** valida a relevância e suficiência dos chunks. Se aprovado, o Orchestrator avança para o Writer.
+7. **Nó 4: Writer** redige a resposta final baseada nos chunks e constrói as citações.
+8. **Nó 5: Judge** realiza a auditoria contra alucinações e valida as citações de páginas do PDF. Se aprovado, avança para o Recap.
+9. **Nó 6: Recap** resume a resposta final em 2 a 3 frases.
+10. O backend retorna a resposta via **SSE (Server-Sent Events)** contendo:
+    - Eventos do tipo `status` transmitindo a transição dos nós.
+    - Eventos do tipo `token` enviando a escrita em tempo real.
+    - Evento do tipo `final` contendo a resposta consolidada, citação completa dos PDFs (com signed URLs) e recap.
+
+#### Fluxo Alternativo (Filtros Sem Correspondência ou Contexto Insuficiente):
+* Se os filtros aplicados (explícitos ou autônomos) forem tão restritivos que não tragam chunks suficientes, o Critique detecta a insuficiência e envia feedback ao Orchestrator.
+* O Orchestrator pode relaxar os filtros autônomos nas tentativas subsequentes (até 2 loops de pesquisa adicionais).
+* Se ainda assim falhar, o Writer emite a resposta fallback padrão: *"Não há referências sobre isso no corpus literário"*.
 
 ---
 

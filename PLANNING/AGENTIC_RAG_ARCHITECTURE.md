@@ -22,11 +22,15 @@ O sistema é composto por **múltiplos agentes especializados** que operam dentr
 - **Papel:** Orquestrador central do grafo. Recebe a query do usuário e **sempre decide o próximo passo**. Todas as rotas passam por ele.
 - **LLM:** Gemini 3.0 Flash Lite
 - **Responsabilidades:**
-  - Analisar a query e determinar a rota (`researcher`, `writer`, `recap`, `direct_response`, `ask_user`, `END`)
-  - **Decomposição dinâmica:** Para queries simples, envia 1 query ao Researcher. Para queries complexas ("fale sobre X e Y"), decompõe em sub-queries e dispara **N Researchers em paralelo** (máx. por sessão configurável)
-  - Manter um **checklist interno** para garantir que todas as etapas foram cumpridas
-  - Após receber resultados do Critique, decidir: avançar para Writer, pedir mais pesquisas, ou ir para Ask User se algo não ficou claro
-  - Após receber feedback do Judge, decidir: avançar para Recap (se aprovado) ou pedir reescrita ao Writer (se rejeitado)
+  - Analisar a query e determinar a rota (`researcher`, `writer`, `recap`, `direct_response`, `ask_user`, `END`).
+  - **Extração e Resolução de Filtros:** Mapear e estruturar os filtros da consulta:
+    - *Filtros Explícitos:* Receber os filtros vindos da UI (`ui_filters` contendo `book_name`, `author`, `chamber`, `chapter`).
+    - *Filtros Implícitos:* Analisar a query em linguagem natural e inferir intenções de filtragem (ex: "segundo o livro A Grande Rebelião..." ➔ `book_name=["A Grande Rebelião"]`).
+    - *Filtros Autônomos:* Ter autonomia para injetar novos filtros ou restringir a pesquisa proativamente (ex: forçar a busca apenas no livro deduzido, mesmo que o usuário não tenha selecionado nenhum filtro na UI), salvando-os em `metadata_filters`.
+  - **Decomposição dinâmica:** Para queries simples, envia 1 query ao Researcher. Para queries complexas, decompõe em sub-queries e dispara **N Researchers em paralelo** (máx. 6 por sessão).
+  - Manter um **checklist interno** para garantir que todas as etapas foram cumpridas.
+  - Após receber resultados do Critique, decidir: avançar para Writer, pedir mais pesquisas, ou ir para Ask User se algo não ficou claro.
+  - Após receber feedback do Judge, decidir: avançar para Recap (se aprovado) ou pedir reescrita ao Writer (se rejeitado).
 - **Limite rígido:** NÃO faz RAG. NÃO escreve resposta final.
 - **Fluxo resumido:** O Orchestrator é revisitado após CADA etapa (Critique → Orchestrator, Judge → Orchestrator, Ask User → Orchestrator) e sempre toma a próxima decisão.
 
@@ -35,10 +39,10 @@ O sistema é composto por **múltiplos agentes especializados** que operam dentr
 - **Papel:** Único agente autorizado a realizar RAG no Qdrant.
 - **LLM:** Gemini 3.0 Flash Lite (para Query Transformation)
 - **Responsabilidades:**
-  - **Query Transformation:** Reformula a query para melhorar recall (sinônimos, expansão), sem distorcer a intenção do usuário
-  - **Metadata Filtering:** Aplica filtros de Livro/Autor/Câmara (vindos da UI ou inferidos pelo Orchestrator)
-  - **Retrieval:** Busca ~30 chunks no Qdrant (gnosis_books + opcionalmente user_interests)
-  - **Cross-Encoder Re-Ranking:** Filtra os top ~10 chunks mais relevantes via **Vertex AI Ranking API** (Google Cloud)
+  - **Query Transformation:** Reformula a query para melhorar recall (sinônimos, expansão), sem distorcer a intenção do usuário.
+  - **Metadata Filtering:** Consome os filtros salvos em `metadata_filters` (`book_name`, `author`, `chamber`, `chapter`) e constrói a query booleana exata do Qdrant usando os metadados equivalentes.
+  - **Retrieval:** Busca ~30 chunks no Qdrant (gnosis_books + opcionalmente user_interests).
+  - **Cross-Encoder Re-Ranking:** Filtra os top ~10 chunks mais relevantes via **Vertex AI Ranking API** (Google Cloud).
 - **Limite rígido:** NÃO gera resposta final. NÃO avalia qualidade.
 - **Concorrência:** Pode haver múltiplos Researchers em paralelo quando o Orchestrator decompõe a query em sub-queries (máx. 6 concorrentes, conforme decisão anterior).
 
