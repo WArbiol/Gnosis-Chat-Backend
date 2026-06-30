@@ -30,7 +30,7 @@
 * **Pré-condições:** Usuário autenticado, conexão com a internet ativa, limite de mensagens do plano não atingido.
 
 #### Fluxo Principal de Sucesso:
-1. O cliente (Flutter) faz uma chamada HTTP POST para `/api/v1/conversations/{id}/ask` passando a `query` e filtros opcionais na UI (`ui_filters` contendo `book_name`, `author`, `chamber`, `chapter`).
+1. O cliente (Flutter) faz uma chamada HTTP POST para `/api/v1/conversations/{id}/ask` passando a `query` e filtros opcionais na UI (`ui_filters` contendo `books`, `authors`, `chamber_levels`, `chapters`).
 2. O middleware do backend FastAPI valida o token JWT do usuário, resolve o `user_id` e verifica as cotas do plano.
 3. O FastAPI inicializa o grafo do LangGraph, salvando no `GraphState` os filtros iniciais `ui_filters` e passando a câmara de acesso do usuário (`chamber_level`) como restrição intransponível.
 4. **Nó 1: Orchestrator** analisa a query e resolve os metadados de filtro:

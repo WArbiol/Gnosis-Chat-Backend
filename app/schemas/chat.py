@@ -4,10 +4,10 @@ from app.schemas.conversation import CitationResponse
 
 class UIFilters(BaseModel):
     """Filtros selecionados pelo usuário na interface mobile ou inferidos pelo orquestrador."""
-    book_name: list[str] | None = Field(default=None, description="Lista de títulos de livros específicos")
-    author: list[str] | None = Field(default=None, description="Lista de autores")
-    chamber: list[int] | None = Field(default=None, description="Níveis de câmara para filtrar (1 ou 2)")
-    chapter: list[str] | None = Field(default=None, description="Capítulos específicos dos livros")
+    books: list[str] | None = Field(default=None, description="Lista de títulos de livros específicos")
+    authors: list[str] | None = Field(default=None, description="Lista de autores")
+    chamber_levels: list[int] | None = Field(default=None, description="Níveis de câmara para filtrar (1 ou 2)")
+    chapters: list[str] | None = Field(default=None, description="Capítulos específicos dos livros")
 
 class ChatRequest(BaseModel):
     """Payload de entrada para realizar perguntas ao RAG."""

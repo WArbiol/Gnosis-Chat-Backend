@@ -24,8 +24,8 @@ O sistema é composto por **múltiplos agentes especializados** que operam dentr
 - **Responsabilidades:**
   - Analisar a query e determinar a rota (`researcher`, `writer`, `recap`, `direct_response`, `ask_user`, `END`).
   - **Extração e Resolução de Filtros:** Mapear e estruturar os filtros da consulta:
-    - *Filtros Explícitos:* Receber os filtros vindos da UI (`ui_filters` contendo `book_name`, `author`, `chamber`, `chapter`).
-    - *Filtros Implícitos:* Analisar a query em linguagem natural e inferir intenções de filtragem (ex: "segundo o livro A Grande Rebelião..." ➔ `book_name=["A Grande Rebelião"]`).
+    - *Filtros Explícitos:* Receber os filtros vindos da UI (`ui_filters` contendo `books`, `authors`, `chamber_levels`, `chapters`).
+    - *Filtros Implícitos:* Analisar a query em linguagem natural e inferir intenções de filtragem (ex: "segundo o livro A Grande Rebelião..." ➔ `books=["A Grande Rebelião"]`).
     - *Filtros Autônomos:* Ter autonomia para injetar novos filtros ou restringir a pesquisa proativamente (ex: forçar a busca apenas no livro deduzido, mesmo que o usuário não tenha selecionado nenhum filtro na UI), salvando-os em `metadata_filters`.
   - **Decomposição dinâmica:** Para queries simples, envia 1 query ao Researcher. Para queries complexas, decompõe em sub-queries e dispara **N Researchers em paralelo** (máx. 6 por sessão).
   - Manter um **checklist interno** para garantir que todas as etapas foram cumpridas.
@@ -40,7 +40,7 @@ O sistema é composto por **múltiplos agentes especializados** que operam dentr
 - **LLM:** Gemini 3.0 Flash Lite (para Query Transformation)
 - **Responsabilidades:**
   - **Query Transformation:** Reformula a query para melhorar recall (sinônimos, expansão), sem distorcer a intenção do usuário.
-  - **Metadata Filtering:** Consome os filtros salvos em `metadata_filters` (`book_name`, `author`, `chamber`, `chapter`) e constrói a query booleana exata do Qdrant usando os metadados equivalentes.
+  - **Metadata Filtering:** Consome os filtros salvos em `metadata_filters` (`books`, `authors`, `chamber_levels`, `chapters`) e constrói a query booleana exata do Qdrant usando os metadados equivalentes.
   - **Retrieval:** Busca ~30 chunks no Qdrant (gnosis_books + opcionalmente user_interests).
   - **Cross-Encoder Re-Ranking:** Filtra os top ~10 chunks mais relevantes via **Vertex AI Ranking API** (Google Cloud).
 - **Limite rígido:** NÃO gera resposta final. NÃO avalia qualidade.
