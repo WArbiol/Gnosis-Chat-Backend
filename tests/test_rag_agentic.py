@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock
 
 from app.domain.exceptions import QuotaExceededException
 from app.schemas.user import UserProfile, PlanEnum
-from app.schemas.chat import UIFilters
-from app.schemas.conversation import CitationResponse
+from app.schemas.chat import UIFilters, CitationDraft
 from app.application.interfaces.llm_gateway import LLMGateway
 from app.application.interfaces.vector_store_gateway import VectorStoreGateway, ChunkResult
 from app.application.interfaces.reranker_gateway import RerankerGateway
@@ -133,7 +132,7 @@ class MockDatabase(DatabaseGateway):
         self.messages_saved.append({"role": role, "content": content, "route": route})
         return "msg-id-123"
 
-    async def save_citations(self, message_id: str, citations: list[CitationResponse]) -> None:
+    async def save_citations(self, message_id: str, citations: list[CitationDraft]) -> None:
         self.citations_saved.extend(citations)
 
 

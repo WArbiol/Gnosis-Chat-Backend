@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from supabase import Client
 from app.application.interfaces.database_gateway import DatabaseGateway
 from app.schemas.user import UserProfile, PlanEnum
-from app.schemas.conversation import CitationResponse
+from app.schemas.chat import CitationDraft
 
 class SupabaseDatabase(DatabaseGateway):
     """Implementação do DatabaseGateway utilizando a API / SDK do Supabase com Service Role."""
@@ -105,7 +105,7 @@ class SupabaseDatabase(DatabaseGateway):
     async def save_citations(
         self,
         message_id: str,
-        citations: list[CitationResponse]
+        citations: list[CitationDraft]
     ) -> None:
         if not citations:
             return
@@ -120,7 +120,7 @@ class SupabaseDatabase(DatabaseGateway):
                 "message_id": message_id,
                 "pdf_name": cit.book_name,
                 "page": cit.page,
-                "snippet": f"Capítulo: {cit.chapter or 'N/A'} | Autor: {cit.author}",
+                "snippet": cit.snippet,
                 "sort_order": idx
             })
             

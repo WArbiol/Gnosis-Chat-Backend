@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from app.schemas.user import UserProfile
-from app.schemas.conversation import CitationResponse
+from app.schemas.chat import CitationDraft
 
 class DatabaseGateway(ABC):
     """Interface abstrata para persistência de dados relacionais (Supabase / PostgreSQL)."""
@@ -36,7 +36,7 @@ class DatabaseGateway(ABC):
     async def save_citations(
         self,
         message_id: str,
-        citations: list[CitationResponse]
+        citations: list[CitationDraft]
     ) -> None:
         """Salva as citações vinculadas a uma mensagem no banco de dados."""
         pass
