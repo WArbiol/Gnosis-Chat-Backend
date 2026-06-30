@@ -1,14 +1,13 @@
 from typing import TypedDict, Literal, Any
 from pydantic import BaseModel
 from app.schemas.user import UserProfile
-from app.schemas.chat import UIFilters
-from app.schemas.conversation import CitationResponse
+from app.schemas.chat import UIFilters, CitationDraft
 
 class ResearchResult(TypedDict):
     """Resultado de uma pesquisa individual do Researcher."""
     sub_query: str
     chunks: list[str]
-    citations: list[CitationResponse]
+    citations: list[CitationDraft]
     relevance_scores: list[float]
 
 class SessionCounters(TypedDict):
@@ -42,7 +41,7 @@ class GraphState(TypedDict, total=False):
 
     # --- Writer ---
     answer: str                         # Resposta final redigida
-    citations: list[CitationResponse]   # Citações com metadados extraídos
+    citations: list[CitationDraft]   # Citações com metadados extraídos
 
     # --- Judge ---
     judge_verdict: Literal["approved", "rejected"]

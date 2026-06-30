@@ -4,7 +4,7 @@ from app.agents.state import GraphState, ResearchResult
 from app.application.interfaces.llm_gateway import LLMGateway
 from app.application.interfaces.vector_store_gateway import VectorStoreGateway
 from app.application.interfaces.reranker_gateway import RerankerGateway
-from app.schemas.conversation import CitationResponse
+from app.schemas.chat import CitationDraft
 
 async def transform_query(llm: LLMGateway, query: str) -> str:
     """Melhora a query original usando sinônimos e expansão para otimizar busca vetorial."""
@@ -62,18 +62,19 @@ async def process_single_query(
 
     # Mapear chunks reordenados
     chunks: list[str] = []
-    citations: list[CitationResponse] = []
+    citations: list[CitationDraft] = []
     scores: list[float] = []
 
     for item in ranked_chunks:
         chunks.append(item["text"])
         citations.append(
-            CitationResponse(
+            CitationDraft(
                 book_name=item["book_name"],
                 author=item["author"],
                 page=item["page"],
                 chamber=item["chamber"],
-                chapter=item["chapter"]
+                chapter=item["chapter"],
+                snippet=item["text"]
             )
         )
         scores.append(item["score"])

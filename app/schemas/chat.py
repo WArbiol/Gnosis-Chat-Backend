@@ -9,6 +9,15 @@ class UIFilters(BaseModel):
     chamber_levels: list[int] | None = Field(default=None, description="Níveis de câmara para filtrar (1 ou 2)")
     chapters: list[str] | None = Field(default=None, description="Capítulos específicos dos livros")
 
+class CitationDraft(BaseModel):
+    """Modelo de citação provisória durante a execução do grafo."""
+    book_name: str = Field(..., description="Nome do livro")
+    author: str = Field(..., description="Autor da obra")
+    page: int = Field(..., description="Número da página")
+    chamber: int = Field(..., description="Câmara (1 ou 2)")
+    chapter: str | None = Field(default=None, description="Capítulo se houver")
+    snippet: str = Field(..., description="Trecho de texto citado")
+
 class ChatRequest(BaseModel):
     """Payload de entrada para realizar perguntas ao RAG."""
     query: str = Field(..., min_length=1, max_length=2000, description="Pergunta do usuário")
@@ -34,7 +43,7 @@ class ChatStreamFinal(BaseModel):
     conversation_id: UUID = Field(..., description="ID da conversa em que a mensagem foi salva")
     message_id: UUID = Field(..., description="ID da mensagem gerada")
     answer: str = Field(..., description="Resposta de texto final completa")
-    citations: list[CitationResponse] = Field(default=[], description="Lista de fontes citadas")
+    citations: list[CitationDraft] = Field(default=[], description="Lista de fontes citadas")
     recap: str | None = Field(default=None, description="Recap/Resumo de 2 a 3 frases")
     route: str = Field(..., description="Rota tomada pelo orquestrador (ex: RAG_BOOKS, DIRECT, etc.)")
     cost_estimate: float = Field(default=0.0, description="Custo estimado da execução em USD")

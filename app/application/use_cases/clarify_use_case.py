@@ -49,18 +49,15 @@ class ClarifyUseCase:
             }
         }
 
-        # 3. Atualizar o estado do grafo no checkpoint com o esclarecimento
-        await compiled_graph.aupdate_state(
-            config,
-            {"user_clarification": user_response},
-            as_node="ask_user"
-        )
+        # 3. Executar o grafo no mesmo thread com o input da clarificação
+        initial_state = {
+            "user_clarification": user_response
+        }
 
-        # 4. Retomar a execução em streaming passando None no input (lê do checkpoint)
         final_state = {}
         try:
             async for event in compiled_graph.astream_events(
-                None,
+                initial_state,
                 config=config,
                 version="v2"
             ):
