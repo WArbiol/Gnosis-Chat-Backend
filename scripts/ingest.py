@@ -47,11 +47,10 @@ async def ingest_chunks(chunk_files: List[Path]):
     vector_store = QdrantVectorStore(client=client, collection_name=COLLECTION_NAME)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     
-    # 3. Initialize Embedding Model (gemini-embedding-001 via GooglePaLMEmbedding/Gemini)
-    # LlamaIndex now uses GoogleGeminiEmbedding for newer models, but let's stick to what's stable
-    # The ADR says gemini-embedding-001. 
+    # 3. Initialize Embedding Model (text-embedding-004)
+    # Match the model used by the main application backend
     from llama_index.embeddings.google import GeminiEmbedding
-    embed_model = GeminiEmbedding(model_name="models/embedding-001", api_key=GOOGLE_API_KEY)
+    embed_model = GeminiEmbedding(model_name="models/text-embedding-004", api_key=GOOGLE_API_KEY)
     
     documents = []
     
