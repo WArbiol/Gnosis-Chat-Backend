@@ -50,7 +50,7 @@ async def ingest_chunks(chunk_files: List[Path]):
     # Match the model used by the main application backend
     from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
     embed_model = GoogleGenAIEmbedding(
-        model_name="text-embedding-004",
+        model_name="models/gemini-embedding-001",
         api_key=GOOGLE_API_KEY
     )
     
