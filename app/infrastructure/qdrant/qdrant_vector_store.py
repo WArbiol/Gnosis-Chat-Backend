@@ -15,7 +15,11 @@ class QdrantVectorStore(VectorStoreGateway):
                 api_key=settings.qdrant_api_key
             )
         else:
-            self.client = QdrantClient(url=settings.qdrant_url)
+            url_or_path = settings.qdrant_url
+            if url_or_path and not url_or_path.startswith("http"):
+                self.client = QdrantClient(path=url_or_path)
+            else:
+                self.client = QdrantClient(url=url_or_path)
             
         self.books_collection = settings.qdrant_collection_books
         self.interests_collection = settings.qdrant_collection_interests

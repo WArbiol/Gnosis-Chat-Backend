@@ -31,7 +31,10 @@ async def ingest_chunks(chunk_files: List[Path]):
     """Embed and upsert chunks from JSON files to Qdrant."""
     
     # 1. Initialize Qdrant Client
-    client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+    if QDRANT_URL and not QDRANT_URL.startswith("http"):
+        client = QdrantClient(path=QDRANT_URL)
+    else:
+        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
     
     # 2. Initialize Vector Store
     vector_store = QdrantVectorStore(client=client, collection_name=COLLECTION_NAME)
