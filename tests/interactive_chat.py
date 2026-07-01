@@ -62,6 +62,11 @@ async def read_stream(response, current_conversation_id):
                     if is_hil:
                         clarification_question = final_json.get("answer", "")
                     else:
+                        # Se não recebemos tokens de streaming (ex: resposta direta do orquestrador),
+                        # exibimos a resposta final completa que veio no payload.
+                        if not ans.strip():
+                            print(f"{GREEN}{final_json.get('answer', '')}{RESET}\n")
+                        
                         citations = final_json.get("citations", [])
                         if citations:
                             print(f"{BOLD}Citações das Obras:{RESET}")
