@@ -89,7 +89,7 @@ class GeminiLLM(LLMGateway):
         response = await loop.run_in_executor(
             None,
             lambda: self.client.models.embed_content(
-                model="text-embedding-004",
+                model="gemini-embedding-001",
                 contents=text
             )
         )
