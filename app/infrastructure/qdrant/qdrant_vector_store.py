@@ -40,13 +40,13 @@ class QdrantVectorStore(VectorStoreGateway):
         must_conditions = []
         
         if books:
-            must_conditions.append(FieldCondition(key="metadata.book_name", match=MatchAny(any=books)))
+            must_conditions.append(FieldCondition(key="book_name", match=MatchAny(any=books)))
         if authors:
-            must_conditions.append(FieldCondition(key="metadata.author", match=MatchAny(any=authors)))
+            must_conditions.append(FieldCondition(key="author", match=MatchAny(any=authors)))
         if chamber_levels:
-            must_conditions.append(FieldCondition(key="metadata.chamber", match=MatchAny(any=chamber_levels)))
+            must_conditions.append(FieldCondition(key="chamber", match=MatchAny(any=chamber_levels)))
         if chapters:
-            must_conditions.append(FieldCondition(key="metadata.chapter", match=MatchAny(any=chapters)))
+            must_conditions.append(FieldCondition(key="chapter", match=MatchAny(any=chapters)))
 
         qdrant_filter = Filter(must=must_conditions) if must_conditions else None
 
