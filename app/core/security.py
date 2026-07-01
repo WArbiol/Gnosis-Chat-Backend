@@ -18,6 +18,15 @@ async def get_current_user(
 ) -> UserProfile:
     """Decode Supabase JWT and return the current user profile."""
     token = credentials.credentials
+    alg = "UNKNOWN"
+
+    # Bypass for testing in development mode
+    if settings.app_env == "development" and token.startswith("test-"):
+        user_id = token.replace("test-", "") or "test-user-123"
+        return UserProfile(
+            id=user_id,
+            email=f"{user_id}@gnosis.chat",
+        )
 
     try:
         # Detect algorithm to decide verification method
