@@ -41,6 +41,14 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "ask_user_calls": 0
     }
 
+    # Se o Critique já avaliou e marcou as fontes como suficientes, prosseguir diretamente para o Writer
+    critique_verdict = state.get("critique_verdict")
+    if critique_verdict == "sufficient":
+        return {
+            "next_step": "writer",
+            "session_counters": counters
+        }
+
     # Se for uma retoma de Human-in-the-Loop, ler a resposta do usuário
     user_clarification = state.get("user_clarification")
     query = state.get("query", "")
