@@ -96,14 +96,15 @@ async def ask(
                 ui_filters=request.ui_filters or UIFilters(),
                 conversation_id=str(request.conversation_id) if request.conversation_id else None
             ):
-                yield f"data: {json.dumps(event)}\n\n"
+                event_name = event.get("event", "message")
+                yield f"event: {event_name}\ndata: {json.dumps(event)}\n\n"
         except QuotaExceededException as qe:
             error_payload = {
                 "event": "error",
                 "code": "PAYMENT_REQUIRED",
                 "message": str(qe)
             }
-            yield f"data: {json.dumps(error_payload)}\n\n"
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
         except Exception as e:
             logger.error(f"Erro no streaming do RAG: {e}", exc_info=True)
             error_payload = {
@@ -111,7 +112,7 @@ async def ask(
                 "code": "INTERNAL_ERROR",
                 "message": "Ocorreu um erro interno ao processar sua pergunta."
             }
-            yield f"data: {json.dumps(error_payload)}\n\n"
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -130,7 +131,8 @@ async def clarify(
                 user_response=request.user_response,
                 user_id=user.id
             ):
-                yield f"data: {json.dumps(event)}\n\n"
+                event_name = event.get("event", "message")
+                yield f"event: {event_name}\ndata: {json.dumps(event)}\n\n"
         except Exception as e:
             logger.error(f"Erro no streaming da clarificação HIL: {e}", exc_info=True)
             error_payload = {
@@ -138,6 +140,6 @@ async def clarify(
                 "code": "INTERNAL_ERROR",
                 "message": "Ocorreu um erro ao retomar o processamento da clarificação."
             }
-            yield f"data: {json.dumps(error_payload)}\n\n"
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
