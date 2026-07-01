@@ -49,7 +49,11 @@ async def ingest_chunks(chunk_files: List[Path]):
     # 3. Initialize Embedding Model (text-embedding-004)
     # Match the model used by the main application backend
     from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-    embed_model = GoogleGenAIEmbedding(model_name="models/text-embedding-004", api_key=GOOGLE_API_KEY)
+    embed_model = GoogleGenAIEmbedding(
+        model_name="models/text-embedding-004",
+        api_key=GOOGLE_API_KEY,
+        http_options={"api_version": "v1"}
+    )
     
     documents = []
     
