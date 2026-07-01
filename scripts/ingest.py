@@ -39,7 +39,10 @@ async def ingest_chunks(chunk_files: List[Path]):
     
     # Configurar API do Google para v1 estável no SDK antigo do LlamaIndex
     import google.generativeai as google_genai
-    google_genai.configure(api_key=GOOGLE_API_KEY, client_options={"api_version": "v1"})
+    google_genai.configure(
+        api_key=GOOGLE_API_KEY,
+        client_options={"api_endpoint": "generativelanguage.googleapis.com/v1"}
+    )
     
     # 1. Initialize Qdrant Client
     if QDRANT_URL and not QDRANT_URL.startswith("http"):
