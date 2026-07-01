@@ -85,9 +85,11 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
     chapters = list(set((ui_filters.get("chapters") or []) + (decision.inferred_chapters or [])))
     chamber_levels = ui_filters.get("chamber_levels") or []
 
-    # Injetar câmara de acesso padrão do usuário como limite de segurança
     user_profile = state.get("user")
-    max_chamber = user_profile.chamber_level if user_profile else 1
+    if isinstance(user_profile, dict):
+        max_chamber = user_profile.get("chamber_level", 1)
+    else:
+        max_chamber = user_profile.chamber_level if user_profile else 1
     # Se o filtro pedir nível acima do do usuário, reduzimos para o permitido
     if chamber_levels:
         chamber_levels = [c for c in chamber_levels if c <= max_chamber]

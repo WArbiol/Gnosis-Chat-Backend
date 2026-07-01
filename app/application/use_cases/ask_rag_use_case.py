@@ -75,7 +75,7 @@ class AskRagUseCase:
         # 4. Configurar estado inicial do grafo
         initial_state = {
             "query": query,
-            "user": user_profile,
+            "user": user_profile.model_dump() if user_profile else {},
             "ui_filters": ui_filters.model_dump() if ui_filters else {},
             "conversation_history": [], # TODO: buscar histórico recente da conversa se necessário
             "session_counters": {

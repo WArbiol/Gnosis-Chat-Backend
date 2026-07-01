@@ -21,8 +21,8 @@ class GraphState(TypedDict, total=False):
     """Estado persistido compartilhado entre os nós do LangGraph."""
     # --- Input ---
     query: str                          # Pergunta inicial do usuário
-    user: UserProfile                   # Objeto do perfil do usuário autenticado
-    ui_filters: UIFilters               # Filtros explícitos vindos do Flutter (books, authors, chamber_levels, chapters)
+    user: dict | UserProfile                   # Objeto do perfil do usuário autenticado (ou dict serializado)
+    ui_filters: dict | UIFilters               # Filtros explícitos vindos do Flutter (ou dict serializado)
     conversation_history: list[dict[str, Any]]  # Histórico recente da conversa (sliding window)
 
     # --- Orchestrator ---
