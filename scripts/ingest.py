@@ -73,7 +73,10 @@ async def ingest_chunks(chunk_files: List[Path]):
     from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
     embed_model = GoogleGenAIEmbedding(
         model_name="models/gemini-embedding-2-preview",
-        api_key=GOOGLE_API_KEY
+        api_key=GOOGLE_API_KEY,
+        retries=10,
+        retry_min_seconds=5,
+        retry_max_seconds=60
     )
     
     # Carregar checkpoint
@@ -126,8 +129,8 @@ async def ingest_chunks(chunk_files: List[Path]):
             save_checkpoint(processed_files)
             print(f"   Sucesso! {len(file_documents)} chunks salvos no Qdrant.")
             
-            # Delay curto para respeitar limites de quota gratuita
-            await asyncio.sleep(0.5)
+            # Delay curto para respeitar limites de quota gratuita (2 segundos de respiro)
+            await asyncio.sleep(2.0)
             
         except Exception as e:
             print(f"   Erro ao processar o arquivo {chunk_file.name}: {e}")
