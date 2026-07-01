@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import List, Dict
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
-from llama_index.embeddings.google import GooglePaLMEmbedding
 from qdrant_client import QdrantClient
 from dotenv import load_dotenv
 
@@ -37,13 +36,6 @@ else:
 async def ingest_chunks(chunk_files: List[Path]):
     """Embed and upsert chunks from JSON files to Qdrant."""
     
-    # Configurar API do Google para v1 estável no SDK antigo do LlamaIndex
-    import google.generativeai as google_genai
-    google_genai.configure(
-        api_key=GOOGLE_API_KEY,
-        client_options={"api_endpoint": "generativelanguage.googleapis.com/v1"}
-    )
-    
     # 1. Initialize Qdrant Client
     if QDRANT_URL and not QDRANT_URL.startswith("http"):
         client = QdrantClient(path=QDRANT_URL)
@@ -56,8 +48,8 @@ async def ingest_chunks(chunk_files: List[Path]):
     
     # 3. Initialize Embedding Model (text-embedding-004)
     # Match the model used by the main application backend
-    from llama_index.embeddings.google import GeminiEmbedding
-    embed_model = GeminiEmbedding(model_name="models/text-embedding-004", api_key=GOOGLE_API_KEY)
+    from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
+    embed_model = GoogleGenAIEmbedding(model_name="models/text-embedding-004", api_key=GOOGLE_API_KEY)
     
     documents = []
     

@@ -13,7 +13,7 @@ dependencies = [
     "qdrant-client==1.13.0",
     "llama-index>=0.12.0",
     "llama-index-vector-stores-qdrant",
-    "llama-index-embeddings-google",
+    "llama-index-embeddings-google-genai",
     "langgraph",
     "langsmith>=0.2.0",
     "google-genai>=1.0.0",
