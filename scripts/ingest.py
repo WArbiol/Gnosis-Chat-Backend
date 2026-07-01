@@ -22,10 +22,17 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 CHUNKS_DIR = BASE_DIR / "data" / "chunks"
 
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_CLOUD_URL = os.getenv("QDRANT_CLOUD_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+QDRANT_LOCAL_URL = os.getenv("QDRANT_LOCAL_URL", "http://localhost:6333")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 COLLECTION_NAME = "gnosis_books"
+
+# Resolve a URL do Qdrant baseada no cenário (Cloud vs Local)
+if QDRANT_CLOUD_URL and QDRANT_API_KEY:
+    QDRANT_URL = QDRANT_CLOUD_URL
+else:
+    QDRANT_URL = QDRANT_LOCAL_URL
 
 async def ingest_chunks(chunk_files: List[Path]):
     """Embed and upsert chunks from JSON files to Qdrant."""
