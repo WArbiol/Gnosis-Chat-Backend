@@ -24,28 +24,54 @@ from app.infrastructure.supabase.supabase_database import SupabaseDatabase
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Instanciar adaptadores singleton de APIs externas
-llm_gateway = GeminiLLM()
-vector_store_gateway = QdrantVectorStore()
-reranker_gateway = VertexRanking()
+# Instanciar adaptadores de forma preguiçosa (Lazy) ou via dependências
+_llm_gateway = None
+_vector_store_gateway = None
+_reranker_gateway = None
 
-def get_ask_rag_use_case() -> AskRagUseCase:
-    supabase_client = get_supabase_client()
+def get_llm_gateway() -> GeminiLLM:
+    global _llm_gateway
+    if _llm_gateway is None:
+        _llm_gateway = GeminiLLM()
+    return _llm_gateway
+
+def get_vector_store_gateway() -> QdrantVectorStore:
+    global _vector_store_gateway
+    if _vector_store_gateway is None:
+        _vector_store_gateway = QdrantVectorStore()
+    return _vector_store_gateway
+
+def get_reranker_gateway() -> VertexRanking:
+    global _reranker_gateway
+    if _reranker_gateway is None:
+        _reranker_gateway = VertexRanking()
+    return _reranker_gateway
+
+def get_ask_rag_use_case(
+    llm: GeminiLLM = Depends(get_llm_gateway),
+    vector_store: QdrantVectorStore = Depends(get_vector_store_gateway),
+    reranker: VertexRanking = Depends(get_reranker_gateway),
+    supabase_client = Depends(get_supabase_client)
+) -> AskRagUseCase:
     database_gateway = SupabaseDatabase(supabase_client)
     return AskRagUseCase(
-        llm=llm_gateway,
-        vector_store=vector_store_gateway,
-        reranker=reranker_gateway,
+        llm=llm,
+        vector_store=vector_store,
+        reranker=reranker,
         database=database_gateway
     )
 
-def get_clarify_use_case() -> ClarifyUseCase:
-    supabase_client = get_supabase_client()
+def get_clarify_use_case(
+    llm: GeminiLLM = Depends(get_llm_gateway),
+    vector_store: QdrantVectorStore = Depends(get_vector_store_gateway),
+    reranker: VertexRanking = Depends(get_reranker_gateway),
+    supabase_client = Depends(get_supabase_client)
+) -> ClarifyUseCase:
     database_gateway = SupabaseDatabase(supabase_client)
     return ClarifyUseCase(
-        llm=llm_gateway,
-        vector_store=vector_store_gateway,
-        reranker=reranker_gateway,
+        llm=llm,
+        vector_store=vector_store,
+        reranker=reranker,
         database=database_gateway
     )
 
