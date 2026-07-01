@@ -12,6 +12,16 @@ class SupabaseDatabase(DatabaseGateway):
         self.client = client
 
     async def get_user_profile(self, user_id: str) -> UserProfile:
+        from app.core.config import settings
+        if settings.app_env == "development" and user_id.startswith("test-"):
+            return UserProfile(
+                id=user_id,
+                email=f"{user_id}@gnosis.chat",
+                plan=PlanEnum.BASIC,
+                chamber_level=1,
+                question_count=0
+            )
+
         loop = asyncio.get_running_loop()
         
         # Chamada síncrona envelopada em executor
@@ -24,15 +34,6 @@ class SupabaseDatabase(DatabaseGateway):
         )
         
         if not response.data:
-            from app.core.config import settings
-            if settings.app_env == "development" and user_id.startswith("test-"):
-                return UserProfile(
-                    id=user_id,
-                    email=f"{user_id}@gnosis.chat",
-                    plan=PlanEnum.BASIC,
-                    chamber_level=1,
-                    question_count=0
-                )
             raise ValueError(f"Usuário com ID {user_id} não encontrado no banco.")
             
         data = response.data[0]
@@ -106,18 +107,24 @@ class SupabaseDatabase(DatabaseGateway):
             payload["route"] = route
         if token_count is not None:
             payload["token_count"] = token_count
+        try:
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.table("messages")
+                .insert(payload)
+                .execute()
+            )
             
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.table("messages")
-            .insert(payload)
-            .execute()
-        )
-        
-        if not response.data:
-            raise RuntimeError("Falha ao salvar mensagem no Supabase.")
-            
-        return str(response.data[0]["id"])
+            if not response.data:
+                raise RuntimeError("Falha ao salvar mensagem no Supabase.")
+                
+            return str(response.data[0]["id"])
+        except Exception as e:
+            from app.core.config import settings
+            if settings.app_env == "development":
+                print(f"DEBUG DB: Supabase messages table not reachable ({e}). Mocking message ID.")
+                return "msg-mock-123"
+            raise
 
     async def save_citations(
         self,
@@ -140,10 +147,16 @@ class SupabaseDatabase(DatabaseGateway):
                 "snippet": cit.snippet,
                 "sort_order": idx
             })
-            
-        await loop.run_in_executor(
-            None,
-            lambda: self.client.table("citations")
-            .insert(payload)
-            .execute()
-        )
+        try:
+            await loop.run_in_executor(
+                None,
+                lambda: self.client.table("citations")
+                .insert(payload)
+                .execute()
+            )
+        except Exception as e:
+            from app.core.config import settings
+            if settings.app_env == "development":
+                print(f"DEBUG DB: Supabase citations table not reachable ({e}). Mocking citation save.")
+                return
+            raise
