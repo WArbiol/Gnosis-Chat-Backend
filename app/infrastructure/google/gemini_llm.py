@@ -1,8 +1,16 @@
 from typing import Any, Type
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 from app.application.interfaces.llm_gateway import LLMGateway
 from app.core.config import settings
+
+def is_retryable_error(exception: Exception) -> bool:
+    if isinstance(exception, APIError):
+        # Retentar para erros de servidor 5xx e rate limit 429
+        return exception.code in [429, 500, 503, 504]
+    return False
 
 class GeminiLLM(LLMGateway):
     """Implementação concreta do LLMGateway usando o SDK google-genai do Google."""
@@ -10,9 +18,15 @@ class GeminiLLM(LLMGateway):
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.google_api_key)
         # Modelos
-        self.lite_model = "gemini-2.5-flash"
-        self.premium_model = "gemini-2.5-flash" # Pode ser gemini-2.5-pro se desejado maior profundidade
+        self.lite_model = "gemini-3.5-flash"
+        self.premium_model = "gemini-3.5-flash" # Pode ser gemini-2.5-pro se desejado maior profundidade
 
+    @retry(
+        retry=retry_if_exception(is_retryable_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=4),
+        reraise=True
+    )
     async def generate_text(
         self,
         prompt: str,
@@ -42,6 +56,12 @@ class GeminiLLM(LLMGateway):
         )
         return response.text or ""
 
+    @retry(
+        retry=retry_if_exception(is_retryable_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=4),
+        reraise=True
+    )
     async def generate_json(
         self,
         prompt: str,
@@ -82,6 +102,12 @@ class GeminiLLM(LLMGateway):
         
         return json.loads(text_data)
 
+    @retry(
+        retry=retry_if_exception(is_retryable_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=4),
+        reraise=True
+    )
     async def generate_embeddings(self, text: str) -> list[float]:
         import asyncio
         loop = asyncio.get_running_loop()
