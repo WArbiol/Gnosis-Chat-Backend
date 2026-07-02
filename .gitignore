@@ -48,3 +48,4 @@ data/raw/*
 data/qdrant_db/
 data/ingest_checkpoint.json
 data/processing.log
+.langgraph_api/

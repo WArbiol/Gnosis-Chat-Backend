@@ -1,3 +1,4 @@
+import os
 from langgraph.checkpoint.memory import MemorySaver
 
 class CheckpointerFactory:
@@ -11,6 +12,11 @@ class CheckpointerFactory:
 
     @classmethod
     def get_checkpointer(cls):
+        # Se o grafo estiver rodando dentro do LangGraph API/Studio/Cloud,
+        # retornamos None para que a persistência nativa do Studio assuma o controle.
+        if any(k.startswith("LANGGRAPH_") for k in os.environ.keys()):
+            return None
+
         if cls._instance is None:
             # MemorySaver persistido na RAM do processo do FastAPI
             cls._instance = MemorySaver()
