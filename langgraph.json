@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "gnosis_rag": "./app/agents/graph.py:compiled_graph"
+  },
+  "env": ".env"
+}
