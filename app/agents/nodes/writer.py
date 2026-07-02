@@ -43,7 +43,8 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         "1. Escreva em formato markdown limpo e elegante.\n"
         "2. Adicione referências explícitas no texto vinculadas às fontes usando o formato '[Livro, p. X]'.\n"
         "3. Não mencione números de fontes internas (ex: não escreva '[Fonte #1]'). Use apenas o nome do livro e página.\n"
-        "4. Mantenha um tom respeitoso, solene e didático."
+        "4. Mantenha um tom respeitoso, solene e didático.\n"
+        "5. IMPORTANTE: Distinga rigorosamente o título da obra ('Pistis Sophia Desvelada') dos seres e conceitos teológicos descritos no texto (ex: a alma/entidade iniciática 'Pistis Sophia' vs a divindade cósmica 'Sophia' / Mãe Divina). Nunca afirme que 'Pistis Sophia' é a Mãe Divina ou o desdobramento dela simplesmente porque o livro possui esse nome."
     )
 
     prompt = (

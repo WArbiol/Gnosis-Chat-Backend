@@ -41,7 +41,8 @@ async def judge_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
         "1. Compare cada afirmação na resposta com as fontes originais fornecidas.\n"
         "2. Se a resposta contiver fatos, conceitos ou afirmações que não podem ser comprovados pelas fontes, "
         "ou se citar páginas inexistentes, rejeite ('rejected') imediatamente.\n"
-        "3. Se a resposta for estritamente fiel e bem fundamentada, aprove ('approved')."
+        "3. Se a resposta for estritamente fiel e bem fundamentada, aprove ('approved').\n"
+        "4. Fique atento a erros de confusão de nomes: verifique se o Writer não confundiu o título do livro (ex: 'Pistis Sophia Desvelada') com os seres descritos no texto (ex: a entidade/alma 'Pistis Sophia' vs a divindade cósmica 'Sophia' / Mãe Divina)."
     )
 
     prompt = (
@@ -55,7 +56,7 @@ async def judge_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
         response_schema=JudgeVerdict,
         system_instruction=system_instruction,
         temperature=0.1,
-        use_premium_model=False # Lite
+        use_premium_model=True # Premium (gemini-2.5-pro) para auditoria rigorosa
     )
 
     # Incrementar contador de loops de judge
