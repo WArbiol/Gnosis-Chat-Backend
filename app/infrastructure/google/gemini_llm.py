@@ -17,8 +17,8 @@ class GeminiLLM(LLMGateway):
 
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.google_api_key)
-        self.lite_model = "gemini-2.5-flash"
-        self.premium_model = "gemini-2.5-pro"  # Premium model para tarefas que exigem raciocínio complexo e síntese de fontes
+        self.lite_model = "gemini-3.5-flash"
+        self.premium_model = "gemini-3.5-flash"  # Pode ser alterado para "gemini-3.1-pro" para tarefas de altíssima complexidade teológica
 
     @retry(
         retry=retry_if_exception(is_retryable_error),

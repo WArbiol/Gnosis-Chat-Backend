@@ -42,7 +42,7 @@ async def judge_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
         "2. Se a resposta contiver fatos, conceitos ou afirmações que não podem ser comprovados pelas fontes, "
         "ou se citar páginas inexistentes, rejeite ('rejected') imediatamente.\n"
         "3. Se a resposta for estritamente fiel e bem fundamentada, aprove ('approved').\n"
-        "4. Fique atento a erros de confusão de nomes: verifique se o Writer não confundiu o título do livro (ex: 'Pistis Sophia Desvelada') com os seres descritos no texto (ex: a entidade/alma 'Pistis Sophia' vs a divindade cósmica 'Sophia' / Mãe Divina)."
+        "4. Fique atento a erros de confusão de metadados: verifique se o Writer não confundiu o título de um livro (ex: 'Pistis Sophia Desvelada', 'O Divino Daimon', 'O Livro Amarelo') com os seres, divindades ou conceitos teológicos descritos no texto das fontes."
     )
 
     prompt = (

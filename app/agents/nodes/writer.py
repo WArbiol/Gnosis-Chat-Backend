@@ -44,7 +44,7 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         "2. Adicione referências explícitas no texto vinculadas às fontes usando o formato '[Livro, p. X]'.\n"
         "3. Não mencione números de fontes internas (ex: não escreva '[Fonte #1]'). Use apenas o nome do livro e página.\n"
         "4. Mantenha um tom respeitoso, solene e didático.\n"
-        "5. IMPORTANTE: Distinga rigorosamente o título da obra ('Pistis Sophia Desvelada') dos seres e conceitos teológicos descritos no texto (ex: a alma/entidade iniciática 'Pistis Sophia' vs a divindade cósmica 'Sophia' / Mãe Divina). Nunca afirme que 'Pistis Sophia' é a Mãe Divina ou o desdobramento dela simplesmente porque o livro possui esse nome."
+        "5. IMPORTANTE: Distinga rigorosamente o título das obras de referência (metadados dos livros) dos conceitos, seres ou entidades teológicas descritos no conteúdo. Nunca confunda ou associe o nome/título de um livro (ex: 'Pistis Sophia Desvelada', 'O Divino Daimon', 'O Livro Amarelo') como se fosse o nome de uma divindade, processo ou entidade descrita nas fontes, a menos que o texto explicitamente fundamente essa relação. Trate os metadados bibliográficos estritamente como referências de catalogação."
     )
 
     prompt = (
