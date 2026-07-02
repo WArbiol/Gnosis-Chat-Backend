@@ -18,22 +18,28 @@ class VertexRanking(RerankerGateway):
         self.location = "global"
         self.has_auth = False
         
-        from app.core.config import settings
-        if settings.app_env != "development":
-            # Tenta carregar credenciais do gcp para obter tokens OAuth2 em outros ambientes
-            try:
-                import google.auth
-                from google.auth.transport.requests import Request
-                
-                self.credentials, self.project_id = google.auth.default()
+        import os
+        # Tenta carregar credenciais do gcp para obter tokens OAuth2
+        try:
+            import google.auth
+            from google.auth.transport.requests import Request
+            
+            self.credentials, self.project_id = google.auth.default()
+            if not self.project_id:
+                self.project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+            
+            if self.credentials and self.project_id:
                 self.has_auth = True
                 logger.info(f"Vertex Ranking inicializado com o projeto GCP: {self.project_id}")
-            except Exception as e:
+            else:
                 self.has_auth = False
-                logger.warning(
-                    f"Não foi possível inicializar credenciais padrão do Google. "
-                    f"Reranker usará fallback baseado no score do Qdrant. Erro: {e}"
-                )
+                logger.debug("Vertex Ranking: Credenciais ou ID de projeto GCP não encontrados. Usando fallback do Qdrant.")
+        except Exception as e:
+            self.has_auth = False
+            logger.debug(
+                f"Não foi possível inicializar credenciais padrão do Google. "
+                f"Reranker usará fallback baseado no score do Qdrant. Erro: {e}"
+            )
 
     async def _get_access_token(self) -> str | None:
         """Obtém um token de acesso válido usando as credenciais do GCP."""
