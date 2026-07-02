@@ -1,6 +1,12 @@
 import os
 from langchain_core.runnables import RunnableConfig
 
+# Importar no nível do módulo (startup) para evitar erros do "blockbuster" 
+# ao fazer importações síncronas bloqueantes (como qdrant_client/portalocker) dentro do event loop assíncrono.
+from app.infrastructure.google.gemini_llm import GeminiLLM
+from app.infrastructure.qdrant.qdrant_vector_store import QdrantVectorStore
+from app.infrastructure.google.vertex_ranking import VertexRanking
+
 # Lazy cached singletons for dev/Studio environments
 _llm = None
 _vector_store = None
@@ -9,21 +15,18 @@ _reranker = None
 def get_llm():
     global _llm
     if _llm is None:
-        from app.infrastructure.google.gemini_llm import GeminiLLM
         _llm = GeminiLLM()
     return _llm
 
 def get_vector_store():
     global _vector_store
     if _vector_store is None:
-        from app.infrastructure.qdrant.qdrant_vector_store import QdrantVectorStore
         _vector_store = QdrantVectorStore()
     return _vector_store
 
 def get_reranker():
     global _reranker
     if _reranker is None:
-        from app.infrastructure.google.vertex_ranking import VertexRanking
         _reranker = VertexRanking()
     return _reranker
 
