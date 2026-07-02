@@ -71,7 +71,17 @@ class QdrantVectorStore(VectorStoreGateway):
             page = meta.get("page") or hit.payload.get("page") or 1
             chamber = meta.get("chamber") or hit.payload.get("chamber") or 1
             chapter = meta.get("chapter") or hit.payload.get("chapter")
-            text = hit.payload.get("text") or ""
+            # Recuperar texto do payload ou do _node_content (LlamaIndex)
+            text = hit.payload.get("text")
+            if not text and "_node_content" in hit.payload:
+                try:
+                    import json
+                    node_data = json.loads(hit.payload["_node_content"])
+                    text = node_data.get("text")
+                except Exception:
+                    pass
+            if not text:
+                text = ""
 
             results.append({
                 "text": text,
