@@ -1,8 +1,12 @@
 import os
+import tempfile
 from langchain_core.runnables import RunnableConfig
 
-# Importar no nível do módulo (startup) para evitar erros do "blockbuster" 
-# ao fazer importações síncronas bloqueantes (como qdrant_client/portalocker) dentro do event loop assíncrono.
+# Pre-set tempfile.tempdir to bypass tempfile calling os.getcwd() under blockbuster
+# when importing portalocker (used by qdrant_client).
+if tempfile.tempdir is None:
+    tempfile.tempdir = "/tmp" if os.name != "nt" else os.environ.get("TEMP", "C:\\Temp")
+
 from app.infrastructure.google.gemini_llm import GeminiLLM
 from app.infrastructure.qdrant.qdrant_vector_store import QdrantVectorStore
 from app.infrastructure.google.vertex_ranking import VertexRanking
