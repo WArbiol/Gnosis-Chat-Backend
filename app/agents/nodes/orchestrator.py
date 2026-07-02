@@ -31,7 +31,8 @@ class OrchestratorDecision(BaseModel):
 
 async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Nó principal do Orquestrador que decide o fluxo do RAG, extrai filtros e decompõe queries."""
-    llm: LLMGateway = config["configurable"]["llm"]
+    from app.agents.nodes.utils import get_configurable_llm
+    llm: LLMGateway = get_configurable_llm(config)
 
     # 1. Recuperar ou inicializar contadores da sessão
     counters: SessionCounters = state.get("session_counters") or {

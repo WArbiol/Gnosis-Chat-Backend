@@ -7,7 +7,8 @@ from langchain_core.runnables import RunnableConfig
 
 async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Nó Writer que redige a resposta detalhada de alta qualidade esotérica."""
-    llm: LLMGateway = config["configurable"]["llm"]
+    from app.agents.nodes.utils import get_configurable_llm
+    llm: LLMGateway = get_configurable_llm(config)
     query = state.get("query", "")
     research_results = state.get("research_results") or []
     history = state.get("conversation_history") or []

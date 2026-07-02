@@ -16,7 +16,8 @@ from langchain_core.runnables import RunnableConfig
 
 async def judge_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Nó Judge que audita a resposta do Writer contra alucinações."""
-    llm: LLMGateway = config["configurable"]["llm"]
+    from app.agents.nodes.utils import get_configurable_llm
+    llm: LLMGateway = get_configurable_llm(config)
     answer = state.get("answer", "")
     research_results = state.get("research_results") or []
     counters = state.get("session_counters")

@@ -90,9 +90,14 @@ from langchain_core.runnables import RunnableConfig
 
 async def researcher_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Nó Researcher executando buscas paralelas em lote para todas as sub-queries."""
-    llm: LLMGateway = config["configurable"]["llm"]
-    vector_store: VectorStoreGateway = config["configurable"]["vector_store"]
-    reranker: RerankerGateway = config["configurable"]["reranker"]
+    from app.agents.nodes.utils import (
+        get_configurable_llm,
+        get_configurable_vector_store,
+        get_configurable_reranker
+    )
+    llm: LLMGateway = get_configurable_llm(config)
+    vector_store: VectorStoreGateway = get_configurable_vector_store(config)
+    reranker: RerankerGateway = get_configurable_reranker(config)
 
     sub_queries = state.get("sub_queries") or [state.get("query", "")]
     metadata_filters = state.get("metadata_filters") or {}

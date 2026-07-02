@@ -6,7 +6,8 @@ from langchain_core.runnables import RunnableConfig
 
 async def recap_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Nó Recap que resume a resposta final em 2 ou 3 frases curtas e diretas."""
-    llm: LLMGateway = config["configurable"]["llm"]
+    from app.agents.nodes.utils import get_configurable_llm
+    llm: LLMGateway = get_configurable_llm(config)
     answer = state.get("answer", "")
 
     if not answer:
