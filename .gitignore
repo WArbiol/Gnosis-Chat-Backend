@@ -45,3 +45,6 @@ data/pdfs/*
 !data/pdfs/.gitkeep
 data/raw/*
 !data/raw/.gitkeep
+data/qdrant_db/
+data/ingest_checkpoint.json
+data/processing.log

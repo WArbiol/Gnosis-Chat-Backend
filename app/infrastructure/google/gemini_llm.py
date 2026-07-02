@@ -17,9 +17,8 @@ class GeminiLLM(LLMGateway):
 
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.google_api_key)
-        # Modelos
-        self.lite_model = "gemini-3.5-flash"
-        self.premium_model = "gemini-3.5-flash" # Pode ser gemini-2.5-pro se desejado maior profundidade
+        self.lite_model = "gemini-2.5-flash"
+        self.premium_model = "gemini-2.5-flash" # Pode ser gemini-2.5-pro se desejado maior profundidade
 
     @retry(
         retry=retry_if_exception(is_retryable_error),
@@ -41,18 +40,10 @@ class GeminiLLM(LLMGateway):
             system_instruction=system_instruction
         )
         
-        # O SDK realiza chamadas síncronas bloqueantes por padrão nas funções normais.
-        # Para manter o async do FastAPI, executamos no thread pool usando o loop de eventos.
-        import asyncio
-        loop = asyncio.get_running_loop()
-        
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config
-            )
+        response = await self.client.aio.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=config
         )
         return response.text or ""
 
@@ -79,16 +70,10 @@ class GeminiLLM(LLMGateway):
             response_schema=response_schema
         )
         
-        import asyncio
-        loop = asyncio.get_running_loop()
-        
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config
-            )
+        response = await self.client.aio.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=config
         )
         
         # O SDK preenche e retorna o objeto diretamente no formato do schema se especificado
@@ -109,15 +94,9 @@ class GeminiLLM(LLMGateway):
         reraise=True
     )
     async def generate_embeddings(self, text: str) -> list[float]:
-        import asyncio
-        loop = asyncio.get_running_loop()
-        
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.models.embed_content(
-                model="gemini-embedding-2-preview",
-                contents=text
-            )
+        response = await self.client.aio.models.embed_content(
+            model="gemini-embedding-2-preview",
+            contents=text
         )
         
         # Extrair valores dos embeddings

@@ -93,7 +93,7 @@ async def run_interactive_chat():
     print("Digite 'sair' para encerrar a sessão.\n")
 
     limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
-    timeout = httpx.Timeout(60.0, connect=10.0)
+    timeout = httpx.Timeout(120.0, connect=10.0)
 
     async with httpx.AsyncClient(limits=limits, timeout=timeout) as client:
         while True:
