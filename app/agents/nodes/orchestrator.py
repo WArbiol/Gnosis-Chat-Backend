@@ -14,7 +14,7 @@ class OrchestratorDecision(BaseModel):
         ..., description="Decide se pesquisa no RAG, escreve resposta final, responde diretamente ou pede esclarecimentos."
     )
     sub_queries: list[str] = Field(
-        default=[], description="Decomposição da query principal em até 3 sub-queries mais simples se for uma pergunta complexa."
+        default=[], description="Decomposição da query principal em até 3 sub-queries mais simples focadas em conceitos. IMPORTANTE: Nunca inclua nomes de livros, autores ou sufixos nas sub-queries, pois eles já serão filtrados via metadados e poluiriam os embeddings."
     )
     inferred_books: list[str] | None = Field(
         default=None, description="Títulos de livros inferidos a partir da query do usuário."
@@ -70,7 +70,8 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "2. 'ask_user': Se a pergunta for excessivamente vaga ou ambígua e necessitar de detalhamento do usuário.\n"
         "3. 'researcher': Se necessitar de informações específicas contidas nos livros gnósticos.\n"
         "Você também deve extrair filtros de metadados inferidos a partir do texto da pergunta (livros, autores, capítulos) "
-        "e decompor a query em até 3 sub-queries focadas se a pergunta contiver múltiplos tópicos (ex: 'fale sobre o Absoluto e a Caridade')."
+        "e decompor a query em até 3 sub-queries focadas se a pergunta contiver múltiplos tópicos (ex: 'fale sobre o Absoluto e a Caridade').\n"
+        "IMPORTANTE: As sub-queries devem conter APENAS termos e conceitos teológicos e esotéricos. NUNCA inclua os nomes dos livros, autores ou capítulos nas sub-queries (ex: em vez de 'Ego no Tratado de Psicologia', use apenas 'Ego')."
     )
 
     prompt = (
