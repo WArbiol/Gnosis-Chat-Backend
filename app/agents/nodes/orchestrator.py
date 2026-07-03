@@ -25,6 +25,9 @@ class OrchestratorDecision(BaseModel):
     inferred_chapters: list[str] | None = Field(
         default=None, description="Capítulos de livros inferidos a partir da query."
     )
+    inferred_chamber_levels: list[int] | None = Field(
+        default=None, description="Níveis de câmara (1 para Primeira Câmara/Público, 2 para Segunda Câmara, 3 para Terceira Câmara) inferidos a partir da query do usuário se ele pedir explicitamente para buscar em uma câmara específica."
+    )
     clarification_question: str | None = Field(
         default=None, description="Pergunta esclarecedora se next_step for 'ask_user'."
     )
@@ -96,7 +99,8 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
     books = list(set((ui_filters.get("books") or []) + (decision.inferred_books or [])))
     authors = list(set((ui_filters.get("authors") or []) + (decision.inferred_authors or [])))
     chapters = list(set((ui_filters.get("chapters") or []) + (decision.inferred_chapters or [])))
-    chamber_levels = ui_filters.get("chamber_levels") or []
+    # Combinar níveis de câmara da UI com os inferidos pelo orquestrador
+    chamber_levels = list(set((ui_filters.get("chamber_levels") or []) + (decision.inferred_chamber_levels or [])))
 
     user_profile = state.get("user")
     if isinstance(user_profile, dict):
