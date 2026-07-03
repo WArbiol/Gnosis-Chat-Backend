@@ -7,6 +7,9 @@ from langchain_core.runnables import RunnableConfig
 
 class OrchestratorDecision(BaseModel):
     """Modelo de decisão estruturado retornado pelo LLM do Orquestrador."""
+    thought: str = Field(
+        ..., description="Análise lógica detalhada (Chain-of-Thought) passo a passo. Avalie se a pergunta atual é uma continuação do histórico recente ou um novo tópico, identifique os termos-chave esotéricos, mapeie os possíveis livros/autores do acervo e planeje a melhor rota e sub-queries antes de definir os demais campos."
+    )
     next_step: Literal["researcher", "writer", "direct_response", "ask_user"] = Field(
         ..., description="Decide se pesquisa no RAG, escreve resposta final, responde diretamente ou pede esclarecimentos."
     )
