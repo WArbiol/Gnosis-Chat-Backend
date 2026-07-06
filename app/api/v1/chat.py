@@ -24,28 +24,16 @@ from app.infrastructure.supabase.supabase_database import SupabaseDatabase
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Instanciar adaptadores de forma preguiçosa (Lazy) ou via dependências
-_llm_gateway = None
-_vector_store_gateway = None
-_reranker_gateway = None
+from app.agents.nodes.utils import get_llm, get_vector_store, get_reranker
 
 def get_llm_gateway() -> GeminiLLM:
-    global _llm_gateway
-    if _llm_gateway is None:
-        _llm_gateway = GeminiLLM()
-    return _llm_gateway
+    return get_llm()
 
 def get_vector_store_gateway() -> QdrantVectorStore:
-    global _vector_store_gateway
-    if _vector_store_gateway is None:
-        _vector_store_gateway = QdrantVectorStore()
-    return _vector_store_gateway
+    return get_vector_store()
 
 def get_reranker_gateway() -> VertexRanking:
-    global _reranker_gateway
-    if _reranker_gateway is None:
-        _reranker_gateway = VertexRanking()
-    return _reranker_gateway
+    return get_reranker()
 
 def get_ask_rag_use_case(
     llm: GeminiLLM = Depends(get_llm_gateway),

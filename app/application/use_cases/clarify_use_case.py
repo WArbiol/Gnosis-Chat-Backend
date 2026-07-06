@@ -115,13 +115,16 @@ class ClarifyUseCase:
             is_hil = next_step == "ask_user" or answer.startswith("PAUSE_HIL:")
             
             if not is_hil:
-                # Salvar mensagem
+                # Salvar mensagem com o resumo (recap) formatado em blockquote
+                db_content = answer
+                if recap:
+                    db_content = f"{answer}\n\n> {recap}"
                 msg_id = await self.database.save_message(
                     conversation_id=conversation_id,
                     role="assistant",
-                    content=answer,
+                    content=db_content,
                     route=final_state.get("next_step", "RAG_CLARIFIED"),
-                    token_count=len(answer.split())
+                    token_count=len(db_content.split())
                 )
                 
                 # Salvar citações

@@ -26,7 +26,7 @@ class OrchestratorDecision(BaseModel):
         default=None, description="Capítulos de livros inferidos a partir da query."
     )
     inferred_chamber_levels: list[int] | None = Field(
-        default=None, description="Níveis de câmara (1 para Primeira Câmara/Público, 2 para Segunda Câmara, 3 para Terceira Câmara) inferidos a partir da query do usuário se ele pedir explicitamente para buscar em uma câmara específica."
+        default=None, description="Níveis de câmara (1 para Primeira Câmara/Público, 2 para Segunda Câmara) inferidos a partir da query do usuário se ele pedir explicitamente para buscar em uma câmara específica."
     )
     clarification_question: str | None = Field(
         default=None, description="Pergunta esclarecedora se next_step for 'ask_user'."

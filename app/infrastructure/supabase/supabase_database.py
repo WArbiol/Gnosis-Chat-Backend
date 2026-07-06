@@ -151,6 +151,42 @@ class SupabaseDatabase(DatabaseGateway):
                 return "msg-mock-123"
             raise
 
+    async def get_recent_messages(
+        self,
+        conversation_id: str,
+        limit: int = 10
+    ) -> list[dict[str, str]]:
+        from app.core.config import settings
+
+        try:
+            loop = asyncio.get_running_loop()
+
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.table("messages")
+                .select("role, content")
+                .eq("conversation_id", conversation_id)
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+
+            if not response.data:
+                return []
+
+            # Inverte para ordem cronológica (mais antiga → mais recente)
+            messages = [
+                {"role": row["role"], "content": row["content"]}
+                for row in reversed(response.data)
+            ]
+            return messages
+
+        except Exception as e:
+            if settings.app_env == "development":
+                print(f"DEBUG DB: get_recent_messages falhou ({e}). Retornando lista vazia.")
+                return []
+            raise
+
     async def save_citations(
         self,
         message_id: str,

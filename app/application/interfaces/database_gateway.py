@@ -33,6 +33,18 @@ class DatabaseGateway(ABC):
         pass
 
     @abstractmethod
+    async def get_recent_messages(
+        self,
+        conversation_id: str,
+        limit: int = 10
+    ) -> list[dict[str, str]]:
+        """Recupera as últimas `limit` mensagens da conversa, ordenadas cronologicamente.
+        
+        Retorna uma lista de dicts no formato [{"role": "user", "content": "..."}, ...].
+        """
+        pass
+
+    @abstractmethod
     async def save_citations(
         self,
         message_id: str,

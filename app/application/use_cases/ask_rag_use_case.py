@@ -77,7 +77,7 @@ class AskRagUseCase:
             "query": query,
             "user": user_profile.model_dump() if user_profile else {},
             "ui_filters": ui_filters.model_dump() if ui_filters else {},
-            "conversation_history": [], # TODO: buscar histórico recente da conversa se necessário
+            "conversation_history": await self.database.get_recent_messages(conversation_id, limit=10) if conversation_id else [],
             "session_counters": {
                 "researcher_calls": 0,
                 "critique_loops": 0,
@@ -176,13 +176,16 @@ class AskRagUseCase:
             
             # Se não for HIL, persistir e descontar cota
             if not is_hil:
-                # Salvar mensagem gerada pelo RAG no Supabase
+                # Salvar mensagem gerada pelo RAG no Supabase com o resumo (recap) formatado em blockquote
+                db_content = answer
+                if recap:
+                    db_content = f"{answer}\n\n> {recap}"
                 msg_id = await self.database.save_message(
                     conversation_id=conversation_id,
                     role="assistant",
-                    content=answer,
+                    content=db_content,
                     route=final_state.get("next_step", "RAG"),
-                    token_count=len(answer.split()) # estimativa simples
+                    token_count=len(db_content.split()) # estimativa simples
                 )
                 
                 # Salvar citações

@@ -6,7 +6,7 @@
 -- conversations
 CREATE TABLE conversations (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   title       TEXT NOT NULL DEFAULT 'Nova conversa',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -47,10 +47,21 @@ CREATE POLICY "own_conversations" ON conversations FOR ALL USING (user_id = auth
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own_messages" ON messages FOR ALL
-  USING (conversation_id IN (SELECT id FROM conversations WHERE user_id = auth.uid()));
+  USING (
+    EXISTS (
+      SELECT 1 FROM conversations 
+      WHERE conversations.id = messages.conversation_id 
+        AND conversations.user_id = auth.uid()
+    )
+  );
 
 ALTER TABLE citations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own_citations" ON citations FOR ALL
-  USING (message_id IN (SELECT id FROM messages WHERE conversation_id IN (
-    SELECT id FROM conversations WHERE user_id = auth.uid()
-  )));
+  USING (
+    EXISTS (
+      SELECT 1 FROM messages
+      JOIN conversations ON conversations.id = messages.conversation_id
+      WHERE messages.id = citations.message_id
+        AND conversations.user_id = auth.uid()
+    )
+  );
