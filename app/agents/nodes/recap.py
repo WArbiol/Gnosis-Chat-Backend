@@ -14,13 +14,14 @@ async def recap_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
         return {"recap": ""}
 
     system_instruction = (
-        "Você é o Recap, um assistente cujo único objetivo é resumir respostas detalhadas em exatamente "
-        "2 ou 3 frases diretas, impactantes e completas, que capturem a essência teológica da resposta."
+        "Você é o Recap, um assistente cujo único objetivo é mapear e descrever de forma ultra-concisa a jornada "
+        "lógica da resposta (o percurso de aprendizado). Em no máximo 2 frases curtas, sintetize o caminho percorrido "
+        "(ex: 'Partimos de [Conceito A], exploramos [Tópico B] e concluímos com a relação sobre [Conceito C]')."
     )
 
     prompt = (
         f"Resposta Completa:\n{answer}\n\n"
-        "Gere o resumo de 2 a 3 frases."
+        "Descreva a jornada lógica ou percurso de aprendizado da resposta acima em até 2 frases curtas."
     )
 
     recap = await llm.generate_text(
