@@ -54,13 +54,20 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         "Escreva a melhor resposta possível utilizando estritamente as fontes acima."
     )
 
-    # Chamada com o modelo Premium (Gemini 3.0 Flash)
-    answer = await llm.generate_text(
+    from langchain_core.callbacks.manager import adispatch_custom_event
+    
+    # Chamada com o modelo Premium (Gemini 3.0 Flash) em stream
+    chunks_text = []
+    async for token in llm.generate_text_stream(
         prompt=prompt,
         system_instruction=system_instruction,
         temperature=0.3,
-        use_premium_model=True # Premium (Flash 3.0)
-    )
+        use_premium_model=True
+    ):
+        chunks_text.append(token)
+        await adispatch_custom_event("writer_token", {"text": token})
+        
+    answer = "".join(chunks_text)
 
     # 3. Mapear e retornar apenas as citações que foram de fato relevantes/fornecidas
     # Filtramos duplicados nas citações

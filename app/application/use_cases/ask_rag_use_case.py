@@ -117,7 +117,9 @@ class AskRagUseCase:
                         "message": "Inicializando orquestração..."
                     }
                 
-                elif event_type == "on_node_start":
+                elif event_type == "on_chain_start" and event.get("name") in [
+                    "orchestrator", "researcher", "critique", "writer", "judge", "recap", "direct_response", "ask_user"
+                ]:
                     node = event.get("name")
                     msg = "Processando..."
                     if node == "orchestrator":
@@ -143,18 +145,9 @@ class AskRagUseCase:
                         "message": msg
                     }
 
-                # Streaming de tokens do Writer
-                elif event_type == "on_chat_model_stream" and node_name == "writer":
-                    chunk = event.get("data", {}).get("chunk")
-                    # Para langchain/google API ou genai native
-                    text = ""
-                    if hasattr(chunk, "text"):
-                        text = chunk.text
-                    elif isinstance(chunk, dict) and "text" in chunk:
-                        text = chunk["text"]
-                    elif hasattr(chunk, "content"):
-                        text = chunk.content
-                        
+                # Streaming de tokens do Writer via evento customizado
+                elif event_type == "on_custom_event" and event.get("name") == "writer_token":
+                    text = event.get("data", {}).get("text")
                     if text:
                         yield {
                             "event": "token",

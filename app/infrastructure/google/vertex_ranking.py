@@ -117,6 +117,9 @@ class VertexRanking(RerankerGateway):
                         f"Vertex Ranking API retornou status {response.status_code}. "
                         f"Resposta: {response.text}"
                     )
+                    if response.status_code in [403, 404]:
+                        logger.warning("Vertex Ranking API retornou 403/404. Desativando cliente para evitar chamadas lentas subsequentes.")
+                        self.has_auth = False
                     # Fallback em caso de erro da API
                     sorted_docs = sorted(documents, key=lambda x: x["score"], reverse=True)
                     return sorted_docs[:top_n]

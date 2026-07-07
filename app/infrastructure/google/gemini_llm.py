@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Any, Type, AsyncGenerator
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -46,6 +46,29 @@ class GeminiLLM(LLMGateway):
             config=config
         )
         return response.text or ""
+
+    async def generate_text_stream(
+        self,
+        prompt: str,
+        system_instruction: str | None = None,
+        temperature: float = 0.2,
+        use_premium_model: bool = False
+    ) -> AsyncGenerator[str, None]:
+        model = self.premium_model if use_premium_model else self.lite_model
+        
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            system_instruction=system_instruction
+        )
+        
+        response_stream = await self.client.aio.models.generate_content_stream(
+            model=model,
+            contents=prompt,
+            config=config
+        )
+        async for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
 
     @retry(
         retry=retry_if_exception(is_retryable_error),

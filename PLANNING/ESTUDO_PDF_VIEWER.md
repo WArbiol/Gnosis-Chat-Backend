@@ -343,3 +343,27 @@ O botão de download abre no leitor nativo do usuário. Ele não navega para a p
 
 > [!NOTE]
 > A Fase 1 pode ser implementada em **~6 horas** e já entrega 90% do valor da feature. A Fase 2 é polish e pode ser feita incrementalmente.
+
+---
+
+## 11. Status de Upload do MVP e Tratamento de Outliers (PDFs > 50 MB)
+
+Durante o processo de upload em lote do MVP, foram identificados 4 arquivos que ultrapassaram o limite de **50 MB** do plano gratuito (Free Tier) do Supabase Storage:
+
+1. **Los Misterios Ocultos del Divino Daimon** (106.47 MB)
+2. **Os Sacramentos da Câmara Nupcial** (76.46 MB)
+3. **Orientação Conjugal** (74.97 MB)
+4. **Ele é Ele... Divino Daimon** (80.06 MB)
+
+### Tratamento Adotado (Fallback)
+* **Remoção do Banco:** Para evitar que o usuário tente abrir um arquivo que não existe no Storage, removemos os registros desses 4 livros da tabela `pdf_catalog`.
+* **Comportamento no Frontend:** Quando o usuário tentar ler/baixar um desses 4 livros, a query de busca retornará `null`/vazio. O frontend deve capturar essa ausência de registro e mostrar uma mensagem amigável, como *"PDF ainda não disponível"*.
+
+### Como subir estes PDFs no futuro?
+Caso faça o upgrade para o plano Pro (que permite arquivos de até 500 GB) ou consiga comprimi-los para menos de 50 MB:
+1. Verifique se os PDFs estão em suas respectivas pastas em `data/pdfs/`.
+2. Execute o script exclusivo criado para os arquivos grandes para que você não precise processar todos os outros 166 novamente:
+   ```bash
+   uv run python scripts/upload_large_pdfs.py
+   ```
+

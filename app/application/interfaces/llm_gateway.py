@@ -16,6 +16,17 @@ class LLMGateway(ABC):
         pass
 
     @abstractmethod
+    async def generate_text_stream(
+        self,
+        prompt: str,
+        system_instruction: str | None = None,
+        temperature: float = 0.2,
+        use_premium_model: bool = False
+    ) -> Any:
+        """Gera um stream de texto a partir do prompt."""
+        pass
+
+    @abstractmethod
     async def generate_json(
         self,
         prompt: str,

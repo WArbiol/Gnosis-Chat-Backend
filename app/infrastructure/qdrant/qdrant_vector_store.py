@@ -26,14 +26,10 @@ class QdrantVectorStore(VectorStoreGateway):
         self.books_collection = settings.qdrant_collection_books
         self.interests_collection = settings.qdrant_collection_interests
         
-        # Carregar acervo de livros e autores únicos para resolução dinâmica de filtros
+        # Carregar acervo de livros e autores únicos para resolução dinâmica de filtros de forma preguiçosa (lazy)
         self.unique_books: list[str] = []
         self.unique_authors: list[str] = []
-        try:
-            self._load_metadata_cache()
-        except Exception:
-            # Fallback silencioso se o banco estiver vazio ou indisponível na inicialização
-            pass
+        self._cache_file = "data/metadata_cache.json"
 
     def _normalize_text(self, text: str) -> str:
         """Remove acentos, converte para minúsculas e remove espaços extras para correspondência difusa."""
@@ -41,58 +37,133 @@ class QdrantVectorStore(VectorStoreGateway):
         return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
 
     def _load_metadata_cache(self) -> None:
-        """Carrega em cache todos os livros e autores únicos da base para resolução aproximada."""
+        """Carrega em cache todos os livros e autores únicos da base para resolução aproximada, usando um arquivo JSON como cache local."""
+        import json
+        import os
+        
+        # Se o cache em memória já estiver preenchido, evita retrabalho
+        if self.unique_books and self.unique_authors:
+            return
+            
+        # Tenta carregar do arquivo JSON local para evitar leitura pesada no Qdrant
+        if os.path.exists(self._cache_file):
+            try:
+                with open(self._cache_file, "r", encoding="utf-8") as f:
+                    cached = json.load(f)
+                    self.unique_books = cached.get("books", [])
+                    self.unique_authors = cached.get("authors", [])
+                    if self.unique_books and self.unique_authors:
+                        return
+            except Exception:
+                pass
+                
+        # Se não houver cache local ou estiver vazio, busca do Qdrant
         unique_books = set()
         unique_authors = set()
         offset = None
         
-        while True:
-            response = self.client.scroll(
-                collection_name=self.books_collection,
-                limit=2000,
-                offset=offset,
-                with_payload=["book_name", "author"],
-                with_vectors=False
-            )
-            points, next_offset = response
-            for p in points:
-                b = p.payload.get("book_name")
-                a = p.payload.get("author")
-                if b:
-                    unique_books.add(b)
-                if a:
-                    unique_authors.add(a)
-            if not next_offset:
-                break
-            offset = next_offset
+        try:
+            while True:
+                response = self.client.scroll(
+                    collection_name=self.books_collection,
+                    limit=2000,
+                    offset=offset,
+                    with_payload=["book_name", "author"],
+                    with_vectors=False
+                )
+                points, next_offset = response
+                for p in points:
+                    payload = p.payload or {}
+                    meta = payload.get("metadata") or {}
+                    
+                    b = meta.get("book_name") or payload.get("book_name")
+                    a = meta.get("author") or payload.get("author")
+                    if b:
+                        unique_books.add(b)
+                    if a:
+                        unique_authors.add(a)
+                if not next_offset:
+                    break
+                offset = next_offset
+                
+            self.unique_books = list(unique_books)
+            self.unique_authors = list(unique_authors)
             
-        self.unique_books = list(unique_books)
-        self.unique_authors = list(unique_authors)
+            # Salva no arquivo JSON local para as próximas inicializações
+            os.makedirs(os.path.dirname(self._cache_file), exist_ok=True)
+            with open(self._cache_file, "w", encoding="utf-8") as f:
+                json.dump({"books": self.unique_books, "authors": self.unique_authors}, f, ensure_ascii=False, indent=2)
+                
+        except Exception:
+            # Fallback silencioso se o Qdrant local estiver bloqueado ou não inicializado
+            pass
+
+    def _resolve_approximate(self, inferred_items: list[str], unique_items: list[str]) -> list[str]:
+        if not unique_items:
+            return inferred_items
+            
+        stop_words = {
+            "de", "do", "da", "dos", "das", "o", "a", "os", "as", 
+            "um", "uma", "uns", "umas", "em", "no", "na", "nos", "nas", 
+            "el", "la", "los", "las", "del", "al", "y", "e", "com", "con", 
+            "para", "por", "sobre", "ao", "aos", "como", "libro", "livro"
+        }
+        
+        resolved = []
+        for ib in inferred_items:
+            norm_ib = self._normalize_text(ib)
+            if len(norm_ib) < 3:
+                continue
+                
+            words_ib = set(w for w in norm_ib.split() if w not in stop_words)
+            if not words_ib:
+                words_ib = set(norm_ib.split())
+                
+            best_match = None
+            best_score = 0.0
+            
+            # 1. Correspondência exata ou substring direta
+            direct_matches = []
+            for ub in unique_items:
+                norm_ub = self._normalize_text(ub)
+                if norm_ib in norm_ub or norm_ub in norm_ib:
+                    direct_matches.append(ub)
+            
+            if direct_matches:
+                resolved.extend(direct_matches)
+                continue
+                
+            # 2. Correspondência aproximada por Jaccard e Overlap
+            for ub in unique_items:
+                norm_ub = self._normalize_text(ub)
+                words_ub = set(w for w in norm_ub.split() if w not in stop_words)
+                if not words_ub:
+                    words_ub = set(norm_ub.split())
+                    
+                intersection = words_ib.intersection(words_ub)
+                if intersection:
+                    union = words_ib.union(words_ub)
+                    jaccard = len(intersection) / len(union)
+                    overlap_inferred = len(intersection) / len(words_ib)
+                    overlap_db = len(intersection) / len(words_ub)
+                    
+                    score = max(jaccard, overlap_inferred * 0.8)
+                    if (jaccard >= 0.4 or overlap_inferred >= 0.7 or overlap_db >= 0.7) and score > best_score:
+                        best_score = score
+                        best_match = ub
+                        
+            if best_match:
+                resolved.append(best_match)
+                
+        return list(set(resolved)) if resolved else inferred_items
 
     def _resolve_books(self, inferred_books: list[str]) -> list[str]:
-        if not self.unique_books:
-            return inferred_books
-        resolved = []
-        for ib in inferred_books:
-            norm_ib = self._normalize_text(ib)
-            for ub in self.unique_books:
-                norm_ub = self._normalize_text(ub)
-                # Verifica se o termo inferido é substring do livro do DB ou vice-versa
-                if norm_ib in norm_ub or norm_ub in norm_ib:
-                    resolved.append(ub)
-        return list(set(resolved)) if resolved else inferred_books
+        self._load_metadata_cache()
+        return self._resolve_approximate(inferred_books, self.unique_books)
 
     def _resolve_authors(self, inferred_authors: list[str]) -> list[str]:
-        if not self.unique_authors:
-            return inferred_authors
-        resolved = []
-        for ia in inferred_authors:
-            norm_ia = self._normalize_text(ia)
-            for ua in self.unique_authors:
-                norm_ua = self._normalize_text(ua)
-                if norm_ia in norm_ua or norm_ua in norm_ia:
-                    resolved.append(ua)
-        return list(set(resolved)) if resolved else inferred_authors
+        self._load_metadata_cache()
+        return self._resolve_approximate(inferred_authors, self.unique_authors)
 
     def _build_qdrant_filter(
         self,
