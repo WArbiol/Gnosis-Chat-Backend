@@ -42,7 +42,9 @@ async def process_single_query(
         books=metadata_filters.get("books"),
         authors=metadata_filters.get("authors"),
         chamber_levels=metadata_filters.get("chamber_levels"),
-        chapters=metadata_filters.get("chapters")
+        chapters=metadata_filters.get("chapters"),
+        page_start=metadata_filters.get("page_start"),
+        page_end=metadata_filters.get("page_end")
     )
 
     if not raw_chunks:

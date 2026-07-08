@@ -2,7 +2,7 @@ import asyncio
 import unicodedata
 from typing import Any
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchAny
+from qdrant_client.models import Filter, FieldCondition, MatchAny, Range
 from app.application.interfaces.vector_store_gateway import VectorStoreGateway, ChunkResult
 from app.core.config import settings
 
@@ -170,7 +170,9 @@ class QdrantVectorStore(VectorStoreGateway):
         books: list[str] | None = None,
         authors: list[str] | None = None,
         chamber_levels: list[int] | None = None,
-        chapters: list[str] | None = None
+        chapters: list[str] | None = None,
+        page_start: int | None = None,
+        page_end: int | None = None
     ) -> Filter | None:
         must_conditions = []
         if books:
@@ -181,6 +183,16 @@ class QdrantVectorStore(VectorStoreGateway):
             must_conditions.append(FieldCondition(key="chamber", match=MatchAny(any=chamber_levels)))
         if chapters:
             must_conditions.append(FieldCondition(key="chapter", match=MatchAny(any=chapters)))
+        if page_start is not None or page_end is not None:
+            must_conditions.append(
+                FieldCondition(
+                    key="page",
+                    range=Range(
+                        gte=float(page_start) if page_start is not None else None,
+                        lte=float(page_end) if page_end is not None else None
+                    )
+                )
+            )
         return Filter(must=must_conditions) if must_conditions else None
 
     async def search_books(
@@ -190,7 +202,9 @@ class QdrantVectorStore(VectorStoreGateway):
         books: list[str] | None = None,
         authors: list[str] | None = None,
         chamber_levels: list[int] | None = None,
-        chapters: list[str] | None = None
+        chapters: list[str] | None = None,
+        page_start: int | None = None,
+        page_end: int | None = None
     ) -> list[ChunkResult]:
         loop = asyncio.get_running_loop()
         
@@ -210,17 +224,22 @@ class QdrantVectorStore(VectorStoreGateway):
             )
 
         # 2. Primeira tentativa: Busca estrita (todos os filtros aplicados)
-        q_filter = self._build_qdrant_filter(resolved_books, resolved_authors, chamber_levels, chapters)
+        q_filter = self._build_qdrant_filter(resolved_books, resolved_authors, chamber_levels, chapters, page_start, page_end)
         response = await _query_with_filter(q_filter)
 
         # 3. Fallback 1: Se deu vazio e havia filtro de capítulo, relaxa removendo capítulo
         if not response and chapters:
-            q_filter = self._build_qdrant_filter(resolved_books, resolved_authors, chamber_levels, None)
+            q_filter = self._build_qdrant_filter(resolved_books, resolved_authors, chamber_levels, None, page_start, page_end)
             response = await _query_with_filter(q_filter)
 
-        # 4. Fallback 2: Se ainda deu vazio, relaxa removendo filtros de livros/autores (mantém apenas chamber_levels para segurança)
+        # 4. Fallback 2: Se deu vazio e havia filtro de página, relaxa removendo página
+        if not response and (page_start is not None or page_end is not None):
+            q_filter = self._build_qdrant_filter(resolved_books, resolved_authors, chamber_levels, None, None, None)
+            response = await _query_with_filter(q_filter)
+
+        # 5. Fallback 3: Se ainda deu vazio, relaxa removendo filtros de livros/autores (mantém apenas chamber_levels para segurança)
         if not response and (resolved_books or resolved_authors):
-            q_filter = self._build_qdrant_filter(None, None, chamber_levels, None)
+            q_filter = self._build_qdrant_filter(None, None, chamber_levels, None, None, None)
             response = await _query_with_filter(q_filter)
 
         # 5. Converter resultados para formato comum do domínio

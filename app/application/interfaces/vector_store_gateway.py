@@ -22,7 +22,9 @@ class VectorStoreGateway(ABC):
         books: list[str] | None = None,
         authors: list[str] | None = None,
         chamber_levels: list[int] | None = None,
-        chapters: list[str] | None = None
+        chapters: list[str] | None = None,
+        page_start: int | None = None,
+        page_end: int | None = None
     ) -> list[ChunkResult]:
         """Realiza busca vetorial na coleção de livros (gnosis_books)."""
         pass

@@ -28,6 +28,12 @@ class OrchestratorDecision(BaseModel):
     inferred_chamber_levels: list[int] | None = Field(
         default=None, description="Níveis de câmara (1 para Primeira Câmara/Público, 2 para Segunda Câmara) inferidos a partir da query do usuário se ele pedir explicitamente para buscar em uma câmara específica."
     )
+    inferred_page_start: int | None = Field(
+        default=None, description="Página inicial inferida ou especificada para filtrar a busca (ex: se o feedback pedir páginas específicas)."
+    )
+    inferred_page_end: int | None = Field(
+        default=None, description="Página final inferida ou especificada para filtrar a busca (ex: se o feedback pedir páginas específicas)."
+    )
     clarification_question: str | None = Field(
         default=None, description="Pergunta esclarecedora se next_step for 'ask_user'."
     )
@@ -67,6 +73,32 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         contextual_query = f"{query} (Nota de esclarecimento do usuário: {user_clarification})"
 
     # 2. Construir o Prompt de Decisão
+    critique_feedback = state.get("critique_feedback")
+    previous_research = ""
+    if critique_feedback:
+        previous_research = (
+            "--- TENTATIVAS DE PESQUISA ANTERIORES E FEEDBACK ---\n"
+            f"O avaliador (Critique) classificou os resultados da pesquisa anterior como insuficientes.\n"
+            f"Feedback detalhado do Critique: {critique_feedback}\n"
+            "Trechos e fontes que já conseguimos recuperar até agora:\n"
+        )
+        research_results = state.get("research_results") or []
+        for r_res in research_results:
+            sub_q = r_res.get("sub_query", "")
+            previous_research += f"- Sub-query: '{sub_q}':\n"
+            for chunk, citation in zip(r_res.get("chunks", []), r_res.get("citations", [])):
+                # citation is CitationDraft object or dict
+                b_name = getattr(citation, "book_name", citation.get("book_name") if isinstance(citation, dict) else "Desconhecido")
+                pg = getattr(citation, "page", citation.get("page") if isinstance(citation, dict) else 1)
+                previous_research += f"  * [{b_name}, pág. {pg}]: {chunk[:120]}...\n"
+        previous_research += (
+            "Analise cuidadosamente o feedback acima. Se o Critique disser que falta algo específico "
+            "e mencionar nomes de livros/capítulos ou páginas específicas, você deve usar esse feedback para refinar sua busca.\n"
+            "Você pode gerar novas sub-queries focando no que falta, e/ou usar 'inferred_page_start' e 'inferred_page_end' "
+            "para focar a busca vetorial em páginas específicas se o Critique tiver sugerido ou se fizer sentido no contexto.\n"
+            "---------------------------------------------------\n\n"
+        )
+
     system_instruction = (
         "Você é o Orchestrator do sistema Gnosis Chat, um RAG sobre obras gnósticas.\n"
         "Sua função é analisar a query do usuário e as premissas e decidir a rota:\n"
@@ -75,12 +107,15 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "3. 'researcher': Se necessitar de informações específicas contidas nos livros gnósticos.\n"
         "Você também deve extrair filtros de metadados inferidos a partir do texto da pergunta (livros, autores, capítulos) "
         "e decompor a query em até 3 sub-queries focadas se a pergunta contiver múltiplos tópicos (ex: 'fale sobre o Absoluto e a Caridade').\n"
-        "IMPORTANTE: As sub-queries devem conter APENAS termos e conceitos teológicos e esotéricos. NUNCA inclua os nomes dos livros, autores ou capítulos nas sub-queries (ex: em vez de 'Ego no Tratado de Psicologia', use apenas 'Ego')."
+        "IMPORTANTE: As sub-queries devem conter APENAS termos e conceitos teológicos e esotéricos. NUNCA inclua os nomes dos livros, autores ou capítulos nas sub-queries (ex: em vez de 'Ego no Tratado de Psicologia', use apenas 'Ego').\n"
+        "PÁGINAS: O banco de dados suporta filtros por páginas específicas ou intervalos de páginas (`page` nos metadados). Se o feedback do Critique sugerir que a resposta ou detalhes adicionais podem ser encontrados em páginas ou faixas de páginas específicas de um livro, você deve preencher 'inferred_page_start' e 'inferred_page_end' para focar a nova busca vetorial exatamente nesse intervalo. Caso contrário, deixe-os como null.\n"
+        "IDIOMA E GRAFIA: Se a pergunta for em português, gere a resposta direta (direct_answer) ou pergunta esclarecedora (clarification_question) obrigatoriamente em português do Brasil (pt-BR). Use grafias brasileiras legítimas (ex: 'exata' e não 'exacta', 'fato' e não 'facto') e termos adaptados à tradução gnóstica brasileira padrão."
     )
 
     prompt = (
         f"Query do Usuário: {contextual_query}\n\n"
         f"Histórico Recente:\n{state.get('conversation_history', [])}\n\n"
+        f"{previous_research}"
         "Analise a query e tome a decisão estruturada correspondente."
     )
 
@@ -114,11 +149,16 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
     else:
         chamber_levels = [c for c in range(1, max_chamber + 1)]
 
+    page_start = ui_filters.get("page_start") or decision.inferred_page_start
+    page_end = ui_filters.get("page_end") or decision.inferred_page_end
+
     metadata_filters = {}
     if books: metadata_filters["books"] = books
     if authors: metadata_filters["authors"] = authors
     if chamber_levels: metadata_filters["chamber_levels"] = chamber_levels
     if chapters: metadata_filters["chapters"] = chapters
+    if page_start is not None: metadata_filters["page_start"] = page_start
+    if page_end is not None: metadata_filters["page_end"] = page_end
 
     # 5. Aplicar limites de loops na rota de decisão
     next_step = decision.next_step

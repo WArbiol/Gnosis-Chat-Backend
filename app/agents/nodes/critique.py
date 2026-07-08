@@ -37,9 +37,11 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
     # Prompt para a LLM avaliar relevância
     system_instruction = (
         "Você é o Critique do sistema Gnosis Chat. Sua tarefa é analisar se as fontes recuperadas (chunks) "
-        "são suficientes, verídicas e relevantes para responder de forma completa à pergunta do usuário.\n"
-        "Se os chunks contêm as respostas, decida por 'sufficient'. Se não respondem ou são completamente irrelevantes, "
-        "decida por 'insufficient' e diga exatamente quais partes da pergunta ficaram sem resposta no feedback."
+        "são suficientes e relevantes para responder de forma completa à pergunta do usuário.\n"
+        "Diretrizes:\n"
+        "1. Se os chunks respondem de forma completa e satisfatória, defina o veredito como 'sufficient'.\n"
+        "2. Se faltar alguma informação importante, defina o veredito como 'insufficient'. Ao invés de apenas classificar de forma genérica, você deve retornar de forma detalhada e construtiva no campo 'feedback' o que já foi encontrado de importante nas fontes atuais E apontar exatamente o que ainda está faltando para responder à pergunta.\n"
+        "3. Se você souber ou suspeitar de pistas adicionais que ajudem no refino (como livros, autores, capítulos, termos de busca mais específicos ou até intervalos de páginas específicas), cite-os no feedback. Se não houver pistas concretas, descreva apenas conceitualmente o que falta. Lembre ao Orquestrador que ele pode aplicar qualquer um desses filtros, inclusive restringir a busca a uma página ou intervalo de páginas se você sugerir (pois o banco possui o campo 'page')."
     )
 
     prompt = (

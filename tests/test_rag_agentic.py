@@ -91,6 +91,7 @@ class MockLLM(LLMGateway):
 class MockVectorStore(VectorStoreGateway):
     def __init__(self):
         self.chunks = []
+        self.last_search_args = {}
         
     async def search_books(
         self,
@@ -99,8 +100,18 @@ class MockVectorStore(VectorStoreGateway):
         books: list[str] | None = None,
         authors: list[str] | None = None,
         chamber_levels: list[int] | None = None,
-        chapters: list[str] | None = None
+        chapters: list[str] | None = None,
+        page_start: int | None = None,
+        page_end: int | None = None
     ) -> list[ChunkResult]:
+        self.last_search_args = {
+            "books": books,
+            "authors": authors,
+            "chamber_levels": chamber_levels,
+            "chapters": chapters,
+            "page_start": page_start,
+            "page_end": page_end
+        }
         return self.chunks
 
     async def search_user_interests(self, user_id: str, query_vector: list[float], limit: int = 5) -> list[ChunkResult]:
@@ -329,3 +340,53 @@ async def test_human_in_the_loop_clarify_flow():
     assert final_clarify_event["is_hil"] is False
     assert "O Absoluto é o espaço" in final_clarify_event["answer"]
     assert db.question_count_incremented is True
+
+
+@pytest.mark.asyncio
+async def test_rag_page_filtering_flow():
+    """Valida se filtros de páginas passados via UIFilters chegam ao Vector Store."""
+    llm = MockLLM()
+    vector_store = MockVectorStore()
+    reranker = MockReranker()
+    db = MockDatabase(
+        UserProfile(id="123", email="user@test.com", plan=PlanEnum.BASIC, chamber_level=1, question_count=0)
+    )
+
+    # Configurar decisão de rota do orquestrador
+    llm.json_responses["pergunta-rag-paginas"] = OrchestratorDecision(
+        thought="mock",
+        next_step="researcher",
+        sub_queries=["o que é a Essência?"]
+    )
+    
+    llm.text_responses["Essência"] = "A Essência é a faísca divina no homem."
+
+    vector_store.chunks = [
+        {
+            "text": "A Essência é o embrião da Alma.",
+            "book_name": "A Caridade Universal",
+            "author": "Samael Aun Weor",
+            "page": 15,
+            "chamber": 1,
+            "chapter": "CAPÍTULO III",
+            "score": 0.95
+        }
+    ]
+
+    use_case = AskRagUseCase(llm, vector_store, reranker, db)
+    
+    events = []
+    ui_filters = UIFilters(page_start=10, page_end=20)
+    async for event in use_case.execute(
+        query="pergunta-rag-paginas",
+        user_id="123",
+        ui_filters=ui_filters,
+        user_profile=db.profile,
+        conversation_id="conv-paginas"
+    ):
+        events.append(event)
+
+    # Verificar se os filtros de página foram passados para o Vector Store
+    assert vector_store.last_search_args.get("page_start") == 10
+    assert vector_store.last_search_args.get("page_end") == 20
+

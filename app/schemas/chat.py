@@ -8,6 +8,8 @@ class UIFilters(BaseModel):
     authors: list[str] | None = Field(default=None, description="Lista de autores")
     chamber_levels: list[int] | None = Field(default=None, description="Níveis de câmara para filtrar (1 ou 2)")
     chapters: list[str] | None = Field(default=None, description="Capítulos específicos dos livros")
+    page_start: int | None = Field(default=None, description="Página inicial para filtrar")
+    page_end: int | None = Field(default=None, description="Página final para filtrar")
 
 class CitationDraft(BaseModel):
     """Modelo de citação provisória durante a execução do grafo."""

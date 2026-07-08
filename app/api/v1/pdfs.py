@@ -69,3 +69,23 @@ def get_pdf_signed_url(
         "file_size_bytes": file_size_bytes,
         "page_count": page_count
     }
+
+@router.get("/catalog")
+def get_pdf_catalog(
+    current_user: UserProfile = Depends(get_current_user)
+):
+    """
+    Lista todas as obras e autores no pdf_catalog (respeitando o nível da câmara do usuário).
+    """
+    supabase = get_supabase_client()
+    try:
+        query = supabase.table("pdf_catalog").select("book_name, author, chamber")
+        if current_user.chamber_level < 2:
+            query = query.eq("chamber", 1)
+        response = query.execute()
+        return response.data or []
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao consultar catálogo de PDFs: {str(e)}"
+        )
