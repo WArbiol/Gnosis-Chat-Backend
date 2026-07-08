@@ -82,6 +82,7 @@ async def ask(
                 query=request.query,
                 user_id=user.id,
                 ui_filters=request.ui_filters or UIFilters(),
+                user_profile=user,
                 conversation_id=str(request.conversation_id) if request.conversation_id else None
             ):
                 event_name = event.get("event", "message")

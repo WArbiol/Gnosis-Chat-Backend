@@ -31,12 +31,10 @@ class AskRagUseCase:
         query: str,
         user_id: str,
         ui_filters: UIFilters,
+        user_profile: UserProfile,
         conversation_id: str | None = None
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Executa o RAG agêntico em streaming, emitindo eventos parciais e persistindo dados."""
-        
-        # 1. Obter perfil de usuário e validar cotas (UC09)
-        user_profile = await self.database.get_user_profile(user_id)
         
         if user_profile.plan == PlanEnum.FREE:
             # Regra dinâmica: conta perguntas dos últimos 7 dias
