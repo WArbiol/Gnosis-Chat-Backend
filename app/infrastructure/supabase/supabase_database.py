@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from supabase import Client
 from app.application.interfaces.database_gateway import DatabaseGateway
 from app.schemas.user import UserProfile, PlanEnum
@@ -85,7 +85,6 @@ class SupabaseDatabase(DatabaseGateway):
             question_count = int(data["question_count"])
             
             # --- Controle e Reset de Cotas ---
-            from datetime import datetime, timezone, timedelta
             last_reset_str = data.get("last_reset_at")
             created_at_str = data.get("created_at")
             now = datetime.now(timezone.utc)
