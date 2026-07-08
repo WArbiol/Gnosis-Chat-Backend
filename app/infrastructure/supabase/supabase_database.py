@@ -103,16 +103,20 @@ class SupabaseDatabase(DatabaseGateway):
                 except Exception:
                     pass
             
-            delta = now - last_reset
             should_reset = False
             
             if plan == PlanEnum.FREE:
-                # FREE reseta a cada 7 dias (semanal)
-                if delta >= timedelta(days=7):
+                # FREE reseta todo Domingo às 00:00 UTC (calendar-based)
+                last_reset_date = last_reset.date()
+                now_date = now.date()
+                last_reset_sunday = last_reset_date - timedelta(days=(last_reset_date.weekday() + 1) % 7)
+                now_sunday = now_date - timedelta(days=(now_date.weekday() + 1) % 7)
+                
+                if now_sunday > last_reset_sunday:
                     should_reset = True
             else:
-                # BASIC/PREMIUM reseta a cada 30 dias (mensal)
-                if delta >= timedelta(days=30):
+                # BASIC/PREMIUM reseta no dia 1 de cada mês às 00:00 UTC (calendar-based)
+                if (now.year > last_reset.year) or (now.month > last_reset.month):
                     should_reset = True
                     
             if should_reset:
