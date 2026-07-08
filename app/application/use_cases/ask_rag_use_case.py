@@ -38,24 +38,22 @@ class AskRagUseCase:
         # 1. Obter perfil de usuário e validar cotas (UC09)
         user_profile = await self.database.get_user_profile(user_id)
         
-        from app.core.config import settings
-        if settings.app_env != "development":
-            if user_profile.plan == PlanEnum.FREE:
-                # Regra dinâmica: conta perguntas dos últimos 7 dias
-                recent_count = await self.database.count_user_messages_in_last_7_days(user_id)
-                if recent_count >= PlanLimits.get_question_limit(PlanEnum.FREE):
-                    raise QuotaExceededException(
-                        "Você atingiu o limite de 3 mensagens semanais do plano gratuito.",
-                        code="LIMIT_EXCEEDED"
-                    )
-            else:
-                # Regra mensal baseada no question_count incrementado
-                limit = PlanLimits.get_question_limit(user_profile.plan)
-                if user_profile.question_count >= limit:
-                    raise QuotaExceededException(
-                        f"Você atingiu o limite de {limit} mensagens mensais do plano {user_profile.plan.value.upper()}.",
-                        code="LIMIT_EXCEEDED"
-                    )
+        if user_profile.plan == PlanEnum.FREE:
+            # Regra dinâmica: conta perguntas dos últimos 7 dias
+            recent_count = await self.database.count_user_messages_in_last_7_days(user_id)
+            if recent_count >= PlanLimits.get_question_limit(PlanEnum.FREE):
+                raise QuotaExceededException(
+                    "Você atingiu o limite de 3 mensagens semanais do plano gratuito.",
+                    code="LIMIT_EXCEEDED"
+                )
+        else:
+            # Regra mensal baseada no question_count incrementado
+            limit = PlanLimits.get_question_limit(user_profile.plan)
+            if user_profile.question_count >= limit:
+                raise QuotaExceededException(
+                    f"Você atingiu o limite de {limit} mensagens mensais do plano {user_profile.plan.value.upper()}.",
+                    code="LIMIT_EXCEEDED"
+                )
 
         # 2. Criar ou validar ID da conversa
         if not conversation_id:
