@@ -11,13 +11,13 @@ class SupabaseDatabase(DatabaseGateway):
     def __init__(self, client: Client) -> None:
         self.client = client
 
-    async def get_user_profile(self, user_id: str) -> UserProfile:
+    async def get_user_profile(self, user_id: str, email: str | None = None) -> UserProfile:
         from app.core.config import settings
         # Bypass imediato para tokens de teste
         if settings.app_env == "development" and (user_id.startswith("test-") or "user-token" in user_id or "test" in user_id):
             return UserProfile(
                 id=user_id,
-                email=f"{user_id}@gnosis.chat",
+                email=email or f"{user_id}@gnosis.chat",
                 plan=PlanEnum.BASIC,
                 chamber_level=1,
                 question_count=0
@@ -36,6 +36,28 @@ class SupabaseDatabase(DatabaseGateway):
             )
             
             if not response.data:
+                # Tentamos criar o perfil na tabela public.users dinamicamente se não existir
+                default_email = email or f"{user_id}@gnosis.chat"
+                try:
+                    insert_response = await loop.run_in_executor(
+                        None,
+                        lambda: self.client.table("users")
+                        .insert({
+                            "id": user_id,
+                            "email": default_email,
+                            "plan": "free",
+                            "chamber_level": 1,
+                            "question_count": 0
+                        })
+                        .execute()
+                    )
+                    if insert_response.data:
+                        response = insert_response
+                except Exception as insert_err:
+                    print(f"DEBUG DB: Falha no auto-provisionamento do usuário {user_id}: {insert_err}")
+                    raise ValueError(f"Usuário com ID {user_id} não encontrado no banco.")
+
+            if not response.data:
                 raise ValueError(f"Usuário com ID {user_id} não encontrado no banco.")
                 
             data = response.data[0]
@@ -52,7 +74,7 @@ class SupabaseDatabase(DatabaseGateway):
                 print(f"DEBUG DB: Supabase get_user_profile falhou ({e}). Usando perfil mockado.")
                 return UserProfile(
                     id=user_id,
-                    email=f"{user_id}@gnosis.chat",
+                    email=email or f"{user_id}@gnosis.chat",
                     plan=PlanEnum.BASIC,
                     chamber_level=1,
                     question_count=0

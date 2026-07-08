@@ -13,6 +13,20 @@ jwks_url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
 jwks_client = PyJWKClient(jwks_url, cache_keys=True)
 
 
+async def _get_or_create_profile(user_id: str, email: str) -> UserProfile:
+    try:
+        from app.core.dependencies import get_supabase_client
+        from app.infrastructure.supabase.supabase_database import SupabaseDatabase
+        supabase_client = get_supabase_client()
+        db = SupabaseDatabase(supabase_client)
+        return await db.get_user_profile(user_id, email=email)
+    except Exception as db_err:
+        print(f"DEBUG AUTH: Falha ao garantir perfil para {user_id}: {db_err}")
+        return UserProfile(
+            id=user_id,
+            email=email,
+        )
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> UserProfile:
@@ -24,10 +38,7 @@ async def get_current_user(
     if settings.app_env == "development":
         if token.startswith("test-"):
             user_id = token.replace("test-", "") or "test-user-123"
-            return UserProfile(
-                id=user_id,
-                email=f"{user_id}@gnosis.chat",
-            )
+            return await _get_or_create_profile(user_id, f"{user_id}@gnosis.chat")
         try:
             # Em desenvolvimento, se o token for um JWT válido estruturalmente (mesmo com assinatura mockada/inválida),
             # nós decodificamos sem verificar a assinatura para facilitar testes locais e offline.
@@ -36,10 +47,7 @@ async def get_current_user(
             if user_id:
                 email = payload.get("email", f"{user_id}@gnosis.chat")
                 print(f"DEBUG AUTH: Dev mode bypass verification for token. User ID: {user_id}")
-                return UserProfile(
-                    id=user_id,
-                    email=email,
-                )
+                return await _get_or_create_profile(user_id, email)
         except Exception as dev_err:
             print(f"DEBUG AUTH: Dev mode unverified decode failed: {dev_err}")
 
@@ -80,10 +88,7 @@ async def get_current_user(
         # Extract email from the token payload directly
         email = payload.get("email", "")
         
-        return UserProfile(
-            id=user_id,
-            email=email,
-        )
+        return await _get_or_create_profile(user_id, email)
         
     except jwt.PyJWKClientError as e:
         print(f"DEBUG AUTH: JWKS Error: {e}")

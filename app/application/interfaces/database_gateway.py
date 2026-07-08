@@ -6,7 +6,7 @@ class DatabaseGateway(ABC):
     """Interface abstrata para persistência de dados relacionais (Supabase / PostgreSQL)."""
 
     @abstractmethod
-    async def get_user_profile(self, user_id: str) -> UserProfile:
+    async def get_user_profile(self, user_id: str, email: str | None = None) -> UserProfile:
         """Recupera o perfil atualizado do usuário, incluindo plano e câmara."""
         pass
 
