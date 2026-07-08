@@ -12,6 +12,7 @@ CREATE TABLE public.users (
   plan           TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'basic', 'premium')),
   chamber_level  INT NOT NULL DEFAULT 1 CHECK (chamber_level IN (1, 2)),
   question_count INT NOT NULL DEFAULT 0,
+  last_reset_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );

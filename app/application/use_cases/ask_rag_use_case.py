@@ -36,18 +36,15 @@ class AskRagUseCase:
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Executa o RAG agêntico em streaming, emitindo eventos parciais e persistindo dados."""
         
-        if user_profile.plan == PlanEnum.FREE:
-            # Regra dinâmica: conta perguntas dos últimos 7 dias
-            recent_count = await self.database.count_user_messages_in_last_7_days(user_id)
-            if recent_count >= PlanLimits.get_question_limit(PlanEnum.FREE):
+        # Validação de cotas baseada no question_count incrementado (perguntas bem sucedidas)
+        limit = PlanLimits.get_question_limit(user_profile.plan)
+        if user_profile.question_count >= limit:
+            if user_profile.plan == PlanEnum.FREE:
                 raise QuotaExceededException(
-                    "Você atingiu o limite de 3 mensagens semanais do plano gratuito.",
+                    "Você atingiu o limite de 3 perguntas do plano Gratuito. Faça o upgrade para continuar explorando o conhecimento gnóstico livremente.",
                     code="LIMIT_EXCEEDED"
                 )
-        else:
-            # Regra mensal baseada no question_count incrementado
-            limit = PlanLimits.get_question_limit(user_profile.plan)
-            if user_profile.question_count >= limit:
+            else:
                 raise QuotaExceededException(
                     f"Você atingiu o limite de {limit} mensagens mensais do plano {user_profile.plan.value.upper()}.",
                     code="LIMIT_EXCEEDED"

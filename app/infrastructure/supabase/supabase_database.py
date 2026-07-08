@@ -27,13 +27,23 @@ class SupabaseDatabase(DatabaseGateway):
             loop = asyncio.get_running_loop()
             
             # Chamada síncrona envelopada em executor
-            response = await loop.run_in_executor(
-                None,
-                lambda: self.client.table("users")
-                .select("id, email, avatar_url, plan, chamber_level, question_count")
-                .eq("id", user_id)
-                .execute()
-            )
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.table("users")
+                    .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at")
+                    .eq("id", user_id)
+                    .execute()
+                )
+            except Exception as select_err:
+                print(f"DEBUG DB: Falha ao carregar last_reset_at ({select_err}). Tentando fallback.")
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.table("users")
+                    .select("id, email, avatar_url, plan, chamber_level, question_count, created_at")
+                    .eq("id", user_id)
+                    .execute()
+                )
             
             if not response.data:
                 # Tentamos criar o perfil na tabela public.users dinamicamente se não existir
@@ -52,7 +62,17 @@ class SupabaseDatabase(DatabaseGateway):
                         .execute()
                     )
                     if insert_response.data:
-                        response = insert_response
+                        # Refetch com os campos default preenchidos
+                        try:
+                            response = await loop.run_in_executor(
+                                None,
+                                lambda: self.client.table("users")
+                                .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at")
+                                .eq("id", user_id)
+                                .execute()
+                            )
+                        except Exception:
+                            response = insert_response
                 except Exception as insert_err:
                     print(f"DEBUG DB: Falha no auto-provisionamento do usuário {user_id}: {insert_err}")
                     raise ValueError(f"Usuário com ID {user_id} não encontrado no banco.")
@@ -61,13 +81,63 @@ class SupabaseDatabase(DatabaseGateway):
                 raise ValueError(f"Usuário com ID {user_id} não encontrado no banco.")
                 
             data = response.data[0]
+            plan = PlanEnum(data["plan"])
+            question_count = int(data["question_count"])
+            
+            # --- Controle e Reset de Cotas ---
+            from datetime import datetime, timezone, timedelta
+            last_reset_str = data.get("last_reset_at")
+            created_at_str = data.get("created_at")
+            now = datetime.now(timezone.utc)
+            
+            # Parsing de datetime com suporte retrocompatível
+            last_reset = now
+            if last_reset_str:
+                try:
+                    last_reset = datetime.fromisoformat(last_reset_str.replace("Z", "+00:00"))
+                except Exception:
+                    pass
+            elif created_at_str:
+                try:
+                    last_reset = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                except Exception:
+                    pass
+            
+            delta = now - last_reset
+            should_reset = False
+            
+            if plan == PlanEnum.FREE:
+                # FREE reseta a cada 7 dias (semanal)
+                if delta >= timedelta(days=7):
+                    should_reset = True
+            else:
+                # BASIC/PREMIUM reseta a cada 30 dias (mensal)
+                if delta >= timedelta(days=30):
+                    should_reset = True
+                    
+            if should_reset:
+                try:
+                    print(f"DEBUG DB: Resetando question_count para o usuário {user_id} ({plan.value}).")
+                    await loop.run_in_executor(
+                        None,
+                        lambda: self.client.table("users")
+                        .update({"question_count": 0, "last_reset_at": now.isoformat()})
+                        .eq("id", user_id)
+                        .execute()
+                    )
+                    question_count = 0
+                    last_reset = now
+                except Exception as reset_err:
+                    print(f"DEBUG DB: Falha ao resetar question_count para {user_id}: {reset_err}")
+            
             return UserProfile(
                 id=str(data["id"]),
                 email=data["email"],
                 avatar_url=data.get("avatar_url"),
-                plan=PlanEnum(data["plan"]),
+                plan=plan,
                 chamber_level=int(data["chamber_level"]),
-                question_count=int(data["question_count"])
+                question_count=question_count,
+                last_reset_at=last_reset
             )
         except Exception as e:
             if settings.app_env == "development":

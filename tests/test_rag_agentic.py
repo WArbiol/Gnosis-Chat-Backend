@@ -38,6 +38,17 @@ class MockLLM(LLMGateway):
                 return val
         return "Resposta mock padrão."
 
+    async def generate_text_stream(
+        self,
+        prompt: str,
+        system_instruction: str | None = None,
+        temperature: float = 0.2,
+        use_premium_model: bool = False
+    ):
+        text = await self.generate_text(prompt, system_instruction, temperature, use_premium_model)
+        for chunk in text.split(" "):
+            yield chunk + " "
+
     async def generate_json(
         self,
         prompt: str,
@@ -54,14 +65,14 @@ class MockLLM(LLMGateway):
                     self.rag_calls = 0
                 self.rag_calls += 1
                 if self.rag_calls > 1:
-                    return OrchestratorDecision(next_step="writer")
-                return OrchestratorDecision(next_step="researcher", sub_queries=["o que é a Essência?"])
+                    return OrchestratorDecision(thought="mock", next_step="writer")
+                return OrchestratorDecision(thought="mock", next_step="researcher", sub_queries=["o que é a Essência?"])
 
             # Match inteligente baseado nas chaves configuradas
             for key, val in sorted(self.json_responses.items(), key=lambda x: len(x[0]), reverse=True):
                 if key.lower() in prompt.lower():
                     return val
-            return OrchestratorDecision(next_step="direct_response", direct_answer="Olá gnóstico!")
+            return OrchestratorDecision(thought="mock", next_step="direct_response", direct_answer="Olá gnóstico!")
             
         # Se for veredito do critique
         if response_schema == CritiqueVerdict:
@@ -135,6 +146,12 @@ class MockDatabase(DatabaseGateway):
     async def save_citations(self, message_id: str, citations: list[CitationDraft]) -> None:
         self.citations_saved.extend(citations)
 
+    async def get_recent_messages(self, conversation_id: str, limit: int = 10) -> list[dict[str, str]]:
+        return []
+
+    async def get_second_chamber_catalog(self) -> list[str]:
+        return []
+
 
 # --- CASOS DE TESTES ---
 
@@ -150,6 +167,7 @@ async def test_direct_response_flow():
 
     # Configurar decisão do Orquestrador
     llm.json_responses["Olá"] = OrchestratorDecision(
+        thought="mock",
         next_step="direct_response",
         direct_answer="Saudações Gnósticas! Como posso ajudar?"
     )
@@ -157,7 +175,13 @@ async def test_direct_response_flow():
     use_case = AskRagUseCase(llm, vector_store, reranker, db)
     
     events = []
-    async for event in use_case.execute(query="Olá", user_id="123", ui_filters=UIFilters(), conversation_id="conv-1"):
+    async for event in use_case.execute(
+        query="Olá",
+        user_id="123",
+        ui_filters=UIFilters(),
+        user_profile=db.profile,
+        conversation_id="conv-1"
+    ):
         events.append(event)
 
     # Verificar se executou com sucesso
@@ -175,19 +199,23 @@ async def test_quota_exceeded_free_user():
     llm = MockLLM()
     vector_store = MockVectorStore()
     reranker = MockReranker()
-    # Mockando que o usuário já enviou 3 mensagens nos últimos 7 dias
+    # Mockando que o usuário já enviou 3 mensagens
     db = MockDatabase(
-        UserProfile(id="123", email="user@test.com", plan=PlanEnum.FREE, chamber_level=1, question_count=0),
-        recent_messages_count=3
+        UserProfile(id="123", email="user@test.com", plan=PlanEnum.FREE, chamber_level=1, question_count=3)
     )
 
     use_case = AskRagUseCase(llm, vector_store, reranker, db)
 
     with pytest.raises(QuotaExceededException) as exc_info:
-        async for _ in use_case.execute(query="Fale sobre o Absoluto", user_id="123", ui_filters=UIFilters()):
+        async for _ in use_case.execute(
+            query="Fale sobre o Absoluto",
+            user_id="123",
+            ui_filters=UIFilters(),
+            user_profile=db.profile
+        ):
             pass
 
-    assert "limite de 3 mensagens semanais" in str(exc_info.value)
+    assert "limite de 3 perguntas do plano Gratuito" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -202,6 +230,7 @@ async def test_rag_retrieval_flow():
 
     # 1. Configurar decisão de rota do orquestrador
     llm.json_responses["pergunta-rag"] = OrchestratorDecision(
+        thought="mock",
         next_step="researcher",
         sub_queries=["o que é a Essência?"]
     )
@@ -225,7 +254,13 @@ async def test_rag_retrieval_flow():
     use_case = AskRagUseCase(llm, vector_store, reranker, db)
     
     events = []
-    async for event in use_case.execute(query="pergunta-rag", user_id="123", ui_filters=UIFilters(), conversation_id="conv-2"):
+    async for event in use_case.execute(
+        query="pergunta-rag",
+        user_id="123",
+        ui_filters=UIFilters(),
+        user_profile=db.profile,
+        conversation_id="conv-2"
+    ):
         events.append(event)
 
     final_event = events[-1]
@@ -248,6 +283,7 @@ async def test_human_in_the_loop_clarify_flow():
 
     # 1. Orquestrador decide pedir esclarecimento
     llm.json_responses["pergunta-vaga"] = OrchestratorDecision(
+        thought="mock",
         next_step="ask_user",
         clarification_question="Você está se referindo ao Absoluto ou ao Demiurgo?"
     )
@@ -255,7 +291,13 @@ async def test_human_in_the_loop_clarify_flow():
     use_case = AskRagUseCase(llm, vector_store, reranker, db)
     
     events = []
-    async for event in use_case.execute(query="pergunta-vaga", user_id="123", ui_filters=UIFilters(), conversation_id="conv-hil"):
+    async for event in use_case.execute(
+        query="pergunta-vaga",
+        user_id="123",
+        ui_filters=UIFilters(),
+        user_profile=db.profile,
+        conversation_id="conv-hil"
+    ):
         events.append(event)
 
     final_event = events[-1]
@@ -268,6 +310,7 @@ async def test_human_in_the_loop_clarify_flow():
     
     # Orquestrador agora muda decisão para direct_response ao receber a clarificação
     llm.json_responses["Nota de esclarecimento"] = OrchestratorDecision(
+        thought="mock",
         next_step="direct_response",
         direct_answer="Excelente. O Absoluto é o espaço abstrato incondicionado."
     )

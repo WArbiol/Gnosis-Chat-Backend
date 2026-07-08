@@ -33,6 +33,8 @@ class PlanLimits:
         return cls.INTERESTS[plan]
 
 
+from datetime import datetime
+
 class UserProfile(BaseModel):
     id: str
     email: str
@@ -40,3 +42,4 @@ class UserProfile(BaseModel):
     plan: PlanEnum = PlanEnum.FREE
     chamber_level: int = 1
     question_count: int = 0
+    last_reset_at: datetime | None = None
