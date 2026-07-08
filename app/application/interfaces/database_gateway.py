@@ -52,3 +52,8 @@ class DatabaseGateway(ABC):
     ) -> None:
         """Salva as citações vinculadas a uma mensagem no banco de dados."""
         pass
+
+    @abstractmethod
+    async def get_second_chamber_catalog(self) -> list[dict]:
+        """Retorna todos os livros e autores cadastrados na Segunda Câmara."""
+        pass

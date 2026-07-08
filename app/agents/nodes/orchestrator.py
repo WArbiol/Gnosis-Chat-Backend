@@ -37,8 +37,9 @@ class OrchestratorDecision(BaseModel):
 
 async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Nó principal do Orquestrador que decide o fluxo do RAG, extrai filtros e decompõe queries."""
-    from app.agents.nodes.utils import get_configurable_llm
+    from app.agents.nodes.utils import get_configurable_llm, get_configurable_database
     llm: LLMGateway = get_configurable_llm(config)
+    database = get_configurable_database(config)
 
     # 1. Recuperar ou inicializar contadores da sessão
     counters: SessionCounters = state.get("session_counters") or {
@@ -133,12 +134,64 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
     if next_step == "researcher" and not sub_queries:
         sub_queries = [query]
 
+    # 5.5. Detectar se o usuário pediu por conteúdo da Segunda Câmara que lhe é restrito
+    chamber_warning = None
+    if max_chamber < 2 and database:
+        try:
+            second_chamber_catalog = await database.get_second_chamber_catalog()
+            
+            import unicodedata
+            def normalize(t: str) -> str:
+                nfkd = unicodedata.normalize('NFKD', t)
+                return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().strip()
+            
+            norm_query = normalize(query)
+            restricted_books = []
+            restricted_authors = []
+            
+            for item in second_chamber_catalog:
+                b_name = item.get("book_name", "")
+                b_author = item.get("author", "")
+                
+                norm_book = normalize(b_name)
+                norm_author = normalize(b_author)
+                
+                inferred_b_match = decision.inferred_books and any(normalize(ib) in norm_book or norm_book in normalize(ib) for ib in decision.inferred_books)
+                inferred_a_match = decision.inferred_authors and any(normalize(ia) in norm_author or norm_author in normalize(ia) for ia in decision.inferred_authors)
+                
+                query_b_match = len(norm_book) > 5 and norm_book in norm_query
+                query_a_match = len(norm_author) > 5 and norm_author in norm_query
+                
+                if (inferred_b_match or query_b_match) and b_name not in restricted_books:
+                    restricted_books.append(b_name)
+                if (inferred_a_match or query_a_match) and b_author not in restricted_authors:
+                    restricted_authors.append(b_author)
+            
+            if restricted_books or restricted_authors:
+                warnings = []
+                if restricted_books:
+                    warnings.append(f"obras da Segunda Câmara (ex: *{', '.join(restricted_books)}*)")
+                if restricted_authors:
+                    warnings.append(f"autores restritos à Segunda Câmara (ex: *{', '.join(restricted_authors)}*)")
+                
+                joined_warnings = " e ".join(warnings)
+                chamber_warning = (
+                    f"⚠️ **Nota de Acesso à Câmara**: Identificamos que a sua pergunta faz referência a {joined_warnings}. "
+                    "Como a sua conta atual possui acesso apenas à **Primeira Câmara (Público)**, buscamos as informações e "
+                    "correspondências disponíveis nas obras públicas da Primeira Câmara. Caso queira acessar o conteúdo restrito da Segunda Câmara, "
+                    "verifique com a administração a liberação correspondente."
+                )
+        except Exception as e:
+            print(f"Erro ao verificar catálogo de restrições da Segunda Câmara: {e}")
+
     # Retornar alterações no estado
     updates: dict[str, Any] = {
         "next_step": next_step,
         "metadata_filters": metadata_filters,
         "session_counters": counters
     }
+    if chamber_warning:
+        updates["chamber_warning"] = chamber_warning
 
     if next_step == "researcher":
         updates["sub_queries"] = sub_queries

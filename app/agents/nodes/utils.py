@@ -44,3 +44,7 @@ def get_configurable_vector_store(config: RunnableConfig):
 def get_configurable_reranker(config: RunnableConfig):
     configurable = config.get("configurable") or {}
     return configurable.get("reranker") or get_reranker()
+
+def get_configurable_database(config: RunnableConfig):
+    configurable = config.get("configurable") or {}
+    return configurable.get("database")

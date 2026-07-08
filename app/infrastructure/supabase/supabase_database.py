@@ -220,4 +220,52 @@ class SupabaseDatabase(DatabaseGateway):
             if settings.app_env == "development":
                 print(f"DEBUG DB: Supabase citations table not reachable ({e}). Mocking citation save.")
                 return
-            raise
+            raise e
+
+    async def get_second_chamber_catalog(self) -> list[dict]:
+        from app.core.config import settings
+        try:
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.table("pdf_catalog")
+                .select("book_name, author, chamber")
+                .eq("chamber", 2)
+                .execute()
+            )
+            return response.data or []
+        except Exception as e:
+            if settings.app_env == "development":
+                print(f"DEBUG DB: get_second_chamber_catalog falhou ({e}). Retornando mock em dev.")
+                return [
+                    {"book_name": "Los Misterios Ocultos del Divino Daimon", "author": "Juan Capasso", "chamber": 2},
+                    {"book_name": "As Joias do Dragão Amarelo - Tomo I", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "Os Sacramentos da Câmara Nupcial", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "LA LEY DEL DESTINO (Conv. diciembre 2002 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "CIENCIA Y RELIGION - EL ULTIMATUM (Convivencia Semana Santa 2003 - ML", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "EL AMOR Y LA PAZ (Convivencia agosto 2003 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "MENSAJE DE AÑO NUEVO 1994", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "CONFERENCIAS INEDITAS (Recopilación 27 Cátedras)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "ALMA BLANCA (Convivencia Semana Santa 2002 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "MENSAJE DE NAVIDAD 1997", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "PSICOANALISIS I (Conf. Entre Febrero Y Abril 1984 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "ANALES Y FUNDAMENTOS CONGRESO GNOSTICO INTERNACIONAL 1995", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "DIALOGOS ESOTERICOS", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "LA MUERTE Y EL DESPERTAR (Conv. Bogotá junio 2004)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "EL ORIGEN DEL MONASTERIO LUMEN DE LUMINE 11 DE SEPTIEMBRE 2003", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "PSICOANALISIS II (Conf. entre febrero y abril 1984 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "EL REGRESO DE MOISES (Conv. Semana Santa 2004 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "EL HOMBRE HUMANO, DIVINO Y ESPIRITUAL (Conv. Nov 1994 - Sto Grial)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "MENSAJE DE AÑO NUEVO 1993  ( Libro En Donde Enseña Aspectos De Las Iniciaciones )", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "EL BARCO HACIA EL TRIUNFO (Conv. fevereiro 2004 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "LA IGLESIA RESTAURADA", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "LOS MISTERIOS DE ELEUSIS (Conf. en abril 2000 - MLL", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "DIALOGOS", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "LA MUJER EN SU CRISTIFICACION", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "EL EVANGELIO DE MOISES (Conv. agosto 2004 - MLL)", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "As Joias do Dragão Amarelo - Tomo III", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "HABLANDO CON EL MAESTRO (Recopilacion Llamados Telefonicos) Ampliado", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "PROVERBIOS DE LA PSICOLOGIA I, II Y III", "author": "V.M. Lakhsmi Daimon", "chamber": 2},
+                    {"book_name": "As Joias do Dragão Amarelo - Tomo II", "author": "V.M. Lakhsmi Daimon", "chamber": 2}
+                ]
+            raise e

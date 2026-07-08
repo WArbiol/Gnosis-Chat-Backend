@@ -50,6 +50,9 @@ class GraphState(TypedDict, total=False):
     # --- Recap ---
     recap: str                          # Resumo conciso de 2-3 frases
 
+    # --- Chamber Access warning ---
+    chamber_warning: str                # Alerta de conteúdo restrito da Segunda Câmara
+
     # --- Direct Response ---
     direct_answer: str                  # Resposta rápida (para saudações ou fora de escopo)
 

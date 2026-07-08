@@ -21,12 +21,27 @@ async def get_current_user(
     alg = "UNKNOWN"
 
     # Bypass for testing in development mode
-    if settings.app_env == "development" and token.startswith("test-"):
-        user_id = token.replace("test-", "") or "test-user-123"
-        return UserProfile(
-            id=user_id,
-            email=f"{user_id}@gnosis.chat",
-        )
+    if settings.app_env == "development":
+        if token.startswith("test-"):
+            user_id = token.replace("test-", "") or "test-user-123"
+            return UserProfile(
+                id=user_id,
+                email=f"{user_id}@gnosis.chat",
+            )
+        try:
+            # Em desenvolvimento, se o token for um JWT válido estruturalmente (mesmo com assinatura mockada/inválida),
+            # nós decodificamos sem verificar a assinatura para facilitar testes locais e offline.
+            payload = jwt.decode(token, options={"verify_signature": False})
+            user_id = payload.get("sub")
+            if user_id:
+                email = payload.get("email", f"{user_id}@gnosis.chat")
+                print(f"DEBUG AUTH: Dev mode bypass verification for token. User ID: {user_id}")
+                return UserProfile(
+                    id=user_id,
+                    email=email,
+                )
+        except Exception as dev_err:
+            print(f"DEBUG AUTH: Dev mode unverified decode failed: {dev_err}")
 
     try:
         # Detect algorithm to decide verification method

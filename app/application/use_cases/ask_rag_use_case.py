@@ -164,6 +164,11 @@ class AskRagUseCase:
             recap = final_state.get("recap", "")
             next_step = final_state.get("next_step")
 
+            # Se houver aviso de câmara restrita, anexar ao final da resposta
+            chamber_warning = final_state.get("chamber_warning")
+            if chamber_warning and answer:
+                answer = f"{answer}\n\n{chamber_warning}"
+
             # Tratar caso de Human-in-the-Loop
             is_hil = next_step == "ask_user" or answer.startswith("PAUSE_HIL:")
             
