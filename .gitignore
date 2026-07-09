@@ -50,3 +50,4 @@ data/ingest_checkpoint.json
 data/processing.log
 data/metadata_cache.json
 .langgraph_api/
+scratch/

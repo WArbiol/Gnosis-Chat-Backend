@@ -11,7 +11,7 @@ class OrchestratorDecision(BaseModel):
         ..., description="Análise lógica detalhada (Chain-of-Thought) passo a passo. Avalie se a pergunta atual é uma continuação do histórico recente ou um novo tópico, identifique os termos-chave esotéricos, mapeie os possíveis livros/autores do acervo e planeje a melhor rota e sub-queries antes de definir os demais campos."
     )
     next_step: Literal["researcher", "writer", "direct_response", "ask_user"] = Field(
-        ..., description="Decide se pesquisa no RAG, escreve resposta final, responde diretamente ou pede esclarecimentos."
+        ..., description="Decide a rota. Escolha 'direct_response' para saudações, despedidas, conversas informais (chit-chat), perguntas gerais (ex: hora, clima), sobre o assistente/aplicativo ou quando o usuário comandar explicitamente para não fazer pesquisa. Escolha 'ask_user' se a pergunta for excessivamente vaga e indefinida. Escolha 'researcher' apenas se necessitar buscar ensinamentos específicos contidos nos livros do acervo."
     )
     sub_queries: list[str] = Field(
         default=[], description="Decomposição da query principal em até 3 sub-queries mais simples focadas em conceitos. IMPORTANTE: Nunca inclua nomes de livros, autores ou sufixos nas sub-queries, pois eles já serão filtrados via metadados e poluiriam os embeddings."
@@ -35,10 +35,10 @@ class OrchestratorDecision(BaseModel):
         default=None, description="Página final inferida ou especificada para filtrar a busca (ex: se o feedback pedir páginas específicas)."
     )
     clarification_question: str | None = Field(
-        default=None, description="Pergunta esclarecedora se next_step for 'ask_user'."
+        default=None, description="Pergunta esclarecedora se next_step for 'ask_user'. IMPORTANTE: Deve ser escrita em português (pt-BR)."
     )
     direct_answer: str | None = Field(
-        default=None, description="Resposta direta completa se next_step for 'direct_response'."
+        default=None, description="Resposta direta completa se next_step for 'direct_response'. IMPORTANTE: Deve ser escrita em português (pt-BR)."
     )
 
 async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
@@ -101,10 +101,16 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
 
     system_instruction = (
         "Você é o Orchestrator do sistema Gnosis Chat, um RAG sobre obras gnósticas.\n"
-        "Sua função é analisar a query do usuário e as premissas e decidir a rota:\n"
-        "1. 'direct_response': Para saudações, perguntas simples sobre a aplicação ou fora do escopo do corpus literário gnóstico.\n"
-        "2. 'ask_user': Se a pergunta for excessivamente vaga ou ambígua e necessitar de detalhamento do usuário.\n"
-        "3. 'researcher': Se necessitar de informações específicas contidas nos livros gnósticos.\n"
+        "Sua função é analisar a query do usuário e o histórico para decidir a melhor rota:\n"
+        "1. 'direct_response': DEVE ser usada para saudações, despedidas, conversas informais (chit-chat), "
+        "perguntas gerais do mundo real (ex: 'que horas são?', 'como está o tempo?'), perguntas sobre a identidade "
+        "do assistente ou o funcionamento do aplicativo (ex: 'quem é você?', 'o que você faz?'), ou quando o usuário "
+        "comandar explicitamente para não pesquisar (ex: 'não faça pesquisa', 'me responda diretamente'). Nesses casos, "
+        "forneça obrigatoriamente a resposta completa e amigável em 'direct_answer' (pt-BR).\n"
+        "2. 'ask_user': DEVE ser usada se a pergunta do usuário for tão vaga ou incompleta que impeça qualquer busca "
+        "(ex: 'como fazer?', 'fale sobre o livro' sem dizer qual livro ou o quê). Nesse caso, formule uma pergunta esclarecedora em 'clarification_question' (pt-BR).\n"
+        "3. 'researcher': DEVE ser usada se a pergunta se referir a conceitos teológicos, psicológicos ou esotéricos do acervo gnóstico "
+        "(ex: 'o que é o Ego?', 'aspectos do Divino Daimon', 'morte do ego').\n"
         "Você também deve extrair filtros de metadados inferidos a partir do texto da pergunta (livros, autores, capítulos) "
         "e decompor a query em até 3 sub-queries focadas se a pergunta contiver múltiplos tópicos (ex: 'fale sobre o Absoluto e a Caridade').\n"
         "IMPORTANTE: As sub-queries devem conter APENAS termos e conceitos teológicos e esotéricos. NUNCA inclua os nomes dos livros, autores ou capítulos nas sub-queries (ex: em vez de 'Ego no Tratado de Psicologia', use apenas 'Ego').\n"
