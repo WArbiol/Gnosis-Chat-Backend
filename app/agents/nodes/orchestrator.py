@@ -11,7 +11,7 @@ class OrchestratorDecision(BaseModel):
         ..., description="Análise lógica detalhada (Chain-of-Thought) passo a passo. Avalie se a pergunta atual é uma continuação do histórico recente ou um novo tópico, identifique os termos-chave esotéricos, mapeie os possíveis livros/autores do acervo e planeje a melhor rota e sub-queries antes de definir os demais campos."
     )
     next_step: Literal["researcher", "writer", "direct_response", "ask_user"] = Field(
-        ..., description="Decide a rota. Escolha 'direct_response' para saudações, despedidas, conversas informais (chit-chat), perguntas gerais (ex: hora, clima), sobre o assistente/aplicativo ou quando o usuário comandar explicitamente para não fazer pesquisa. Escolha 'ask_user' se a pergunta for excessivamente vaga e indefinida. Escolha 'researcher' apenas se necessitar buscar ensinamentos específicos contidos nos livros do acervo."
+        ..., description="Decide a rota. Escolha 'direct_response' para saudações, despedidas, conversas informais (chit-chat), perguntas gerais do mundo real (ex: hora, clima), sobre o assistente/aplicativo ou quando o usuário comandar explicitamente para não fazer pesquisa. Escolha 'ask_user' se a pergunta for vaga e indefinida. Escolha 'researcher' como a rota padrão e principal para qualquer pergunta sobre conceitos, estudos, reflexões ou ensinamentos contidos nas obras."
     )
     sub_queries: list[str] = Field(
         default=[], description="Decomposição da query principal em até 3 sub-queries mais simples focadas em conceitos. IMPORTANTE: Nunca inclua nomes de livros, autores ou sufixos nas sub-queries, pois eles já serão filtrados via metadados e poluiriam os embeddings."
@@ -109,8 +109,7 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "forneça obrigatoriamente a resposta completa e amigável em 'direct_answer' (pt-BR).\n"
         "2. 'ask_user': DEVE ser usada se a pergunta do usuário for tão vaga ou incompleta que impeça qualquer busca "
         "(ex: 'como fazer?', 'fale sobre o livro' sem dizer qual livro ou o quê). Nesse caso, formule uma pergunta esclarecedora em 'clarification_question' (pt-BR).\n"
-        "3. 'researcher': DEVE ser usada se a pergunta se referir a conceitos teológicos, psicológicos ou esotéricos do acervo gnóstico "
-        "(ex: 'o que é o Ego?', 'aspectos do Divino Daimon', 'morte do ego').\n"
+        "3. 'researcher': ROTA PADRÃO E PRINCIPAL. Deve ser usada para quase todas as perguntas sobre conceitos teológicos, psicológicos ou esotéricos do acervo gnóstico (ex: 'o que é o Ego?', 'aspectos do Divino Daimon', 'morte do ego') ou reflexões gerais que o acervo possa responder.\n"
         "Você também deve extrair filtros de metadados inferidos a partir do texto da pergunta (livros, autores, capítulos) "
         "e decompor a query em até 3 sub-queries focadas se a pergunta contiver múltiplos tópicos (ex: 'fale sobre o Absoluto e a Caridade').\n"
         "IMPORTANTE: As sub-queries devem conter APENAS termos e conceitos teológicos e esotéricos. NUNCA inclua os nomes dos livros, autores ou capítulos nas sub-queries (ex: em vez de 'Ego no Tratado de Psicologia', use apenas 'Ego').\n"
