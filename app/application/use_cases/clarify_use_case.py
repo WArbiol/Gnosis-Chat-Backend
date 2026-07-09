@@ -46,7 +46,8 @@ class ClarifyUseCase:
                 "vector_store": self.vector_store,
                 "reranker": self.reranker,
                 "database": self.database
-            }
+            },
+            "recursion_limit": 50
         }
 
         # 3. Executar o grafo no mesmo thread com o input da clarificação

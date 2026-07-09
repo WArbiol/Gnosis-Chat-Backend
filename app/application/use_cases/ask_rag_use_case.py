@@ -89,7 +89,8 @@ class AskRagUseCase:
                 "vector_store": self.vector_store,
                 "reranker": self.reranker,
                 "database": self.database
-            }
+            },
+            "recursion_limit": 50
         }
 
         # 5. Executar o grafo em streaming de eventos
