@@ -131,7 +131,7 @@ class VertexRanking(RerankerGateway):
                     return sorted_docs[:top_n]
                 
                 data = response.json()
-                results = data.get("results", [])
+                results = data.get("records") or data.get("results") or []
                 
                 # Mapeia as posições originais ordenadas
                 reranked_docs = []
