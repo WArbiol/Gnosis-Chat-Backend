@@ -54,7 +54,7 @@ O sistema é composto por **múltiplos agentes especializados** que operam dentr
   - Verificar se os chunks cobrem a pergunta
   - Se **suficiente:** Reportar ao Orchestrator que pode avançar para o Writer
   - Se **insuficiente:** Reportar ao Orchestrator com sugestões (reformular query, ajustar filtros, alterar top-K)
-- **Loop:** `Researcher → Critique → Orchestrator` (máx. 2 loops de retry)
+- **Loop:** `Researcher → Critique → Orchestrator` (máx. 6 loops de retry)
 - **Limite rígido:** NÃO faz RAG. NÃO escreve resposta.
 
 ### 2.4. Writer (Escritor)
@@ -178,7 +178,7 @@ O sistema é composto por **múltiplos agentes especializados** que operam dentr
 | Limite                       | Valor | Justificativa                                    |
 |------------------------------|:-----:|--------------------------------------------------|
 | Máx. Researchers por sessão  | 7     | Total de chamadas ao Researcher (incluindo retries após Critique) |
-| Máx. loops Critique→Orchestrator | 2 | Evitar loops infinitos de re-pesquisa            |
+| Máx. loops Critique→Orchestrator | 6 | Evitar loops infinitos de re-pesquisa            |
 | Máx. loops Judge→Orchestrator | 1     | Evitar loops infinitos de reescrita              |
 | Máx. Ask User por sessão     | 2     | Permitir esclarecimentos sem frustrar o usuário  |
 
