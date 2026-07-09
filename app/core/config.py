@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Google AI
     google_api_key: str = ""
+    google_cloud_project: str = ""
 
     # Stripe
     stripe_secret_key: str = ""

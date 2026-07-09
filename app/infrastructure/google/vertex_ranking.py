@@ -24,9 +24,15 @@ class VertexRanking(RerankerGateway):
             import google.auth
             from google.auth.transport.requests import Request
             
-            self.credentials, self.project_id = google.auth.default()
-            if not self.project_id:
-                self.project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+            self.credentials, default_project = google.auth.default()
+            self.project_id = (
+                settings.google_cloud_project or 
+                os.environ.get("GOOGLE_CLOUD_PROJECT") or 
+                os.environ.get("GCP_PROJECT") or 
+                default_project
+            )
+            if self.project_id:
+                self.project_id = self.project_id.strip('"').strip("'")
             
             if self.credentials and self.project_id:
                 self.has_auth = True
