@@ -146,6 +146,6 @@ class VertexRanking(RerankerGateway):
                 return reranked_docs[:top_n]
                 
         except Exception as e:
-            logger.error(f"Exceção durante chamada à Vertex Ranking API: {e}. Usando fallback.")
+            logger.exception(f"Exceção durante chamada à Vertex Ranking API: {e}. Usando fallback.")
             sorted_docs = sorted(documents, key=lambda x: x["score"], reverse=True)
             return sorted_docs[:top_n]
