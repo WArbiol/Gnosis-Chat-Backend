@@ -10,6 +10,9 @@ class QdrantVectorStore(VectorStoreGateway):
     """Implementação concreta do VectorStoreGateway utilizando o Qdrant."""
 
     def __init__(self) -> None:
+        import os
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        
         # Se houver API key, conecta no Cloud, senão local
         if settings.qdrant_api_key and settings.qdrant_cloud_url:
             self.client = QdrantClient(
@@ -19,6 +22,8 @@ class QdrantVectorStore(VectorStoreGateway):
         else:
             url_or_path = settings.qdrant_url
             if url_or_path and not url_or_path.startswith("http"):
+                if not os.path.isabs(url_or_path):
+                    url_or_path = os.path.join(project_root, url_or_path)
                 self.client = QdrantClient(path=url_or_path)
             else:
                 self.client = QdrantClient(url=url_or_path)
@@ -29,7 +34,7 @@ class QdrantVectorStore(VectorStoreGateway):
         # Carregar acervo de livros e autores únicos para resolução dinâmica de filtros de forma preguiçosa (lazy)
         self.unique_books: list[str] = []
         self.unique_authors: list[str] = []
-        self._cache_file = "data/metadata_cache.json"
+        self._cache_file = os.path.join(project_root, "data/metadata_cache.json")
 
     def _normalize_text(self, text: str) -> str:
         """Remove acentos, converte para minúsculas e remove espaços extras para correspondência difusa."""
