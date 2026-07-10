@@ -27,6 +27,7 @@ dependencies = [
     "unstructured-inference>=1.2.0",
     "onnxruntime-gpu>=1.24.3",
     "tqdm>=4.67.3",
+    "slowapi>=0.1.10",
 ]
 
 [project.optional-dependencies]

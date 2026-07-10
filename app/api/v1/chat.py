@@ -1,7 +1,7 @@
 import json
 import logging
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,7 @@ from app.core.dependencies import get_supabase_client
 from app.schemas.chat import ChatRequest, UIFilters
 from app.schemas.user import UserProfile
 from app.domain.exceptions import QuotaExceededException
+from app.core.limiter import limiter
 
 # Use Cases
 from app.application.use_cases.ask_rag_use_case import AskRagUseCase
@@ -69,8 +70,10 @@ class ClarifyRequest(BaseModel):
     user_response: str = Field(..., min_length=1, max_length=2000, description="Texto de resposta de esclarecimento.")
 
 @router.post("/ask")
+@limiter.limit("20/minute")
 async def ask(
-    request: ChatRequest,
+    request: Request,
+    payload: ChatRequest,
     user: UserProfile = Depends(get_current_user),
     use_case: AskRagUseCase = Depends(get_ask_rag_use_case)
 ):
@@ -79,11 +82,11 @@ async def ask(
     async def event_generator():
         try:
             async for event in use_case.execute(
-                query=request.query,
+                query=payload.query,
                 user_id=user.id,
-                ui_filters=request.ui_filters or UIFilters(),
+                ui_filters=payload.ui_filters or UIFilters(),
                 user_profile=user,
-                conversation_id=str(request.conversation_id) if request.conversation_id else None
+                conversation_id=str(payload.conversation_id) if payload.conversation_id else None
             ):
                 event_name = event.get("event", "message")
                 yield f"event: {event_name}\ndata: {json.dumps(event)}\n\n"

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from app.schemas.common import ErrorResponse
 
@@ -53,5 +54,15 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=ErrorResponse(
                 code="HTTP_ERROR",
                 message=str(exc.detail),
+            ).model_dump(),
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            content=ErrorResponse(
+                code="TOO_MANY_REQUESTS",
+                message="Muitas requisições. Por favor, aguarde um momento antes de enviar a próxima pergunta."
             ).model_dump(),
         )

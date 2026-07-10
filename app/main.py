@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
+from app.core.limiter import limiter
 
 
 @asynccontextmanager
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
         description="RAG-powered chat API over 90 gnostic PDFs",
         lifespan=lifespan,
     )
+    app.state.limiter = limiter
 
     app.add_middleware(
         CORSMiddleware,
