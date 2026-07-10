@@ -58,7 +58,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(RateLimitExceeded)
-    async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
         return JSONResponse(
             status_code=429,
             content=ErrorResponse(
