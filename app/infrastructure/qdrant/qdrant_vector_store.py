@@ -218,15 +218,16 @@ class QdrantVectorStore(VectorStoreGateway):
         resolved_authors = self._resolve_authors(authors) if authors else None
 
         async def _query_with_filter(q_filter: Filter | None) -> list[Any]:
-            return await loop.run_in_executor(
+            res = await loop.run_in_executor(
                 None,
-                lambda: self.client.search(
+                lambda: self.client.query_points(
                     collection_name=self.books_collection,
-                    query_vector=query_vector,
+                    query=query_vector,
                     query_filter=q_filter,
                     limit=limit
                 )
             )
+            return res.points
 
         # 2. Primeira tentativa: Busca estrita (todos os filtros aplicados)
         q_filter = self._build_qdrant_filter(resolved_books, resolved_authors, chamber_levels, chapters, page_start, page_end)
@@ -297,16 +298,16 @@ class QdrantVectorStore(VectorStoreGateway):
         
         response = await loop.run_in_executor(
             None,
-            lambda: self.client.search(
+            lambda: self.client.query_points(
                 collection_name=self.interests_collection,
-                query_vector=query_vector,
+                query=query_vector,
                 query_filter=qdrant_filter,
                 limit=limit
             )
         )
         
         results: list[ChunkResult] = []
-        for hit in response:
+        for hit in response.points:
             results.append({
                 "text": hit.payload.get("interest_text", ""),
                 "book_name": "Interesse do Usuário",

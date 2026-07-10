@@ -116,20 +116,38 @@ async def ingest_chunks(chunk_files: List[Path]):
                 save_checkpoint(processed_files)
                 continue
                 
-            # Ingerir este arquivo específico no Qdrant
-            VectorStoreIndex.from_documents(
-                file_documents,
-                storage_context=storage_context,
-                embed_model=embed_model,
-                show_progress=True
-            )
+            # Ingerir este arquivo em sub-lotes de 500 chunks para evitar erros do Gemini API e permitir checkpointing preciso
+            sub_batch_size = 500
+            total_docs = len(file_documents)
             
-            # Registrar no checkpoint
+            for i in range(0, total_docs, sub_batch_size):
+                sub_batch = file_documents[i : i + sub_batch_size]
+                part_key = f"{chunk_file.name}_part_{i}"
+                
+                if part_key in processed_files:
+                    print(f"   -> Sub-lote {i} a {min(i + sub_batch_size, total_docs)} já processado anteriormente. Pulando.")
+                    continue
+                
+                print(f"   -> Enviando lote de chunks {i} até {min(i + sub_batch_size, total_docs)} de {total_docs}...")
+                VectorStoreIndex.from_documents(
+                    sub_batch,
+                    storage_context=storage_context,
+                    embed_model=embed_model,
+                    show_progress=True
+                )
+                
+                processed_files.append(part_key)
+                save_checkpoint(processed_files)
+                
+                # Delay curto entre sub-lotes para evitar limite de requisições por minuto (RPM)
+                await asyncio.sleep(1.5)
+            
+            # Registrar o arquivo inteiro como concluído
             processed_files.append(chunk_file.name)
             save_checkpoint(processed_files)
-            print(f"   Sucesso! {len(file_documents)} chunks salvos no Qdrant.")
+            print(f"   Sucesso! Todos os {total_docs} chunks salvos no Qdrant.")
             
-            # Delay curto para respeitar limites de quota gratuita (2 segundos de respiro)
+            # Delay curto para respeitar limites de quota (2 segundos de respiro)
             await asyncio.sleep(2.0)
             
         except Exception as e:

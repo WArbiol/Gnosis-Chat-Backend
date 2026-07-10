@@ -67,7 +67,7 @@ class AskRagUseCase:
             content=query
         )
 
-        # 4. Configurar estado inicial do grafo
+        # 4. Configurar estado inicial do grafo, limpando o estado da rodada anterior
         initial_state = {
             "query": query,
             "user": user_profile.model_dump() if user_profile else {},
@@ -78,7 +78,24 @@ class AskRagUseCase:
                 "critique_loops": 0,
                 "judge_loops": 0,
                 "ask_user_calls": 0
-            }
+            },
+            # Limpar chaves da rodada anterior para evitar reuso indevido do checkpoint
+            "next_step": None,
+            "sub_queries": [],
+            "orchestrator_checklist": {},
+            "research_results": [],
+            "metadata_filters": {},
+            "critique_verdict": None,
+            "critique_feedback": None,
+            "answer": "",
+            "citations": [],
+            "judge_verdict": None,
+            "judge_feedback": None,
+            "recap": "",
+            "chamber_warning": None,
+            "direct_answer": None,
+            "clarification_question": None,
+            "user_clarification": None
         }
 
         # Configurações de runtime injetando gateways via Clean Architecture

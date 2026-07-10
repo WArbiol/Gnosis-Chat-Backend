@@ -43,8 +43,8 @@ class Settings(BaseSettings):
 
     @property
     def qdrant_url(self) -> str:
-        """Returns Qdrant Cloud URL in production, local Docker URL otherwise."""
-        if self.is_production and self.qdrant_cloud_url:
+        """Returns Qdrant Cloud URL if provided, local Docker URL otherwise."""
+        if self.qdrant_cloud_url:
             return self.qdrant_cloud_url
         return self.qdrant_local_url
 
