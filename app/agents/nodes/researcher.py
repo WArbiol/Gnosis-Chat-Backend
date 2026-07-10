@@ -26,11 +26,15 @@ async def process_single_query(
     metadata_filters: dict[str, Any],
     llm: LLMGateway,
     vector_store: VectorStoreGateway,
-    reranker: RerankerGateway
+    reranker: RerankerGateway,
+    skip_transform: bool = False
 ) -> ResearchResult:
     """Processa uma única sub-query: transform, embed, retrieval e re-rank."""
     # 1. Query Transformation
-    transformed = await transform_query(llm, sub_query)
+    if skip_transform:
+        transformed = sub_query
+    else:
+        transformed = await transform_query(llm, sub_query)
 
     # 2. Embedding Generation
     vector = await llm.generate_embeddings(transformed)
@@ -105,9 +109,12 @@ async def researcher_node(state: GraphState, config: RunnableConfig) -> dict[str
     metadata_filters = state.get("metadata_filters") or {}
     counters = state.get("session_counters")
 
+    critique_loops = counters.get("critique_loops", 0) if counters else 0
+    skip_transform = (critique_loops == 0)
+
     # 1. Executar todas as pesquisas de forma assíncrona concorrente (máx. 6)
     tasks = [
-        process_single_query(sq, metadata_filters, llm, vector_store, reranker)
+        process_single_query(sq, metadata_filters, llm, vector_store, reranker, skip_transform=skip_transform)
         for sq in sub_queries[:6] # Limite de segurança de 6 sub-queries paralelas
     ]
     

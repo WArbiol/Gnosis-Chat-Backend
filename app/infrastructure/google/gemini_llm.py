@@ -17,7 +17,7 @@ class GeminiLLM(LLMGateway):
 
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.google_api_key)
-        self.lite_model = "gemini-3.5-flash"
+        self.lite_model = "gemini-3.1-flash-lite"
         self.premium_model = "gemini-3.5-flash"  # Pode ser alterado para "gemini-3.1-pro" para tarefas de altíssima complexidade teológica
 
     @retry(
