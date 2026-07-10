@@ -124,7 +124,11 @@ async def researcher_node(state: GraphState, config: RunnableConfig) -> dict[str
     if counters:
         counters["researcher_calls"] += 1
 
+    # Agregar os novos resultados aos existentes para não perder o contexto das buscas anteriores
+    existing_results = state.get("research_results") or []
+    combined_results = existing_results + results
+
     return {
-        "research_results": results,
+        "research_results": combined_results,
         "session_counters": counters
     }
