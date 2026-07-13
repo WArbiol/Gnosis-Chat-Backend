@@ -31,7 +31,7 @@ class SupabaseDatabase(DatabaseGateway):
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.table("users")
-                    .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at")
+                    .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, current_period_end")
                     .eq("id", user_id)
                     .execute()
                 )
@@ -40,7 +40,7 @@ class SupabaseDatabase(DatabaseGateway):
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.table("users")
-                    .select("id, email, avatar_url, plan, chamber_level, question_count, created_at")
+                    .select("id, email, avatar_url, plan, chamber_level, question_count, created_at, stripe_customer_id, subscription_status, current_period_end")
                     .eq("id", user_id)
                     .execute()
                 )
@@ -67,7 +67,7 @@ class SupabaseDatabase(DatabaseGateway):
                             response = await loop.run_in_executor(
                                 None,
                                 lambda: self.client.table("users")
-                                .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at")
+                                .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, current_period_end")
                                 .eq("id", user_id)
                                 .execute()
                             )
@@ -133,6 +133,15 @@ class SupabaseDatabase(DatabaseGateway):
                 except Exception as reset_err:
                     print(f"DEBUG DB: Falha ao resetar question_count para {user_id}: {reset_err}")
             
+            # Parse current_period_end
+            period_end_str = data.get("current_period_end")
+            period_end = None
+            if period_end_str:
+                try:
+                    period_end = datetime.fromisoformat(period_end_str.replace("Z", "+00:00"))
+                except Exception:
+                    pass
+
             return UserProfile(
                 id=str(data["id"]),
                 email=data["email"],
@@ -140,7 +149,10 @@ class SupabaseDatabase(DatabaseGateway):
                 plan=plan,
                 chamber_level=int(data["chamber_level"]),
                 question_count=question_count,
-                last_reset_at=last_reset
+                last_reset_at=last_reset,
+                stripe_customer_id=data.get("stripe_customer_id"),
+                subscription_status=data.get("subscription_status", "free"),
+                current_period_end=period_end,
             )
         except Exception as e:
             if settings.app_env == "development":

@@ -21,6 +21,14 @@ async def get_user_profile(user_id: str) -> UserProfile:
         except Exception:
             pass
 
+    period_end_str = data.get("current_period_end")
+    period_end = None
+    if period_end_str:
+        try:
+            period_end = datetime.fromisoformat(period_end_str.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
     return UserProfile(
         id=data["id"],
         email=data["email"],
@@ -28,5 +36,8 @@ async def get_user_profile(user_id: str) -> UserProfile:
         plan=data.get("plan", "free"),
         chamber_level=data.get("chamber_level", 1),
         question_count=data.get("question_count", 0),
-        last_reset_at=last_reset
+        last_reset_at=last_reset,
+        stripe_customer_id=data.get("stripe_customer_id"),
+        subscription_status=data.get("subscription_status", "free"),
+        current_period_end=period_end,
     )
