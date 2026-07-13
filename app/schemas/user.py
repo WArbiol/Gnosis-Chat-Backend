@@ -35,4 +35,5 @@ class UserProfile(BaseModel):
     last_reset_at: datetime | None = None
     stripe_customer_id: str | None = None
     subscription_status: str = "free"
+    subscription_provider: str | None = None
     current_period_end: datetime | None = None

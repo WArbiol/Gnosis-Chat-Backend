@@ -31,7 +31,7 @@ class SupabaseDatabase(DatabaseGateway):
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.table("users")
-                    .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, current_period_end")
+                    .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
                     .eq("id", user_id)
                     .execute()
                 )
@@ -40,7 +40,7 @@ class SupabaseDatabase(DatabaseGateway):
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.table("users")
-                    .select("id, email, avatar_url, plan, chamber_level, question_count, created_at, stripe_customer_id, subscription_status, current_period_end")
+                    .select("id, email, avatar_url, plan, chamber_level, question_count, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
                     .eq("id", user_id)
                     .execute()
                 )
@@ -67,7 +67,7 @@ class SupabaseDatabase(DatabaseGateway):
                             response = await loop.run_in_executor(
                                 None,
                                 lambda: self.client.table("users")
-                                .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, current_period_end")
+                                .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
                                 .eq("id", user_id)
                                 .execute()
                             )
@@ -152,6 +152,7 @@ class SupabaseDatabase(DatabaseGateway):
                 last_reset_at=last_reset,
                 stripe_customer_id=data.get("stripe_customer_id"),
                 subscription_status=data.get("subscription_status", "free"),
+                subscription_provider=data.get("subscription_provider"),
                 current_period_end=period_end,
             )
         except Exception as e:

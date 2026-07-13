@@ -104,6 +104,7 @@ async def create_checkout_session(user_id: str, email: str, price_id: str) -> st
                     .update({
                         "plan": plan,
                         "subscription_status": "active",
+                        "subscription_provider": "stripe",
                     })
                     .eq("id", user_id)
                     .execute(),
@@ -235,6 +236,7 @@ async def _handle_checkout_completed(session) -> None:
             "plan": plan,
             "stripe_subscription_id": subscription_id,
             "subscription_status": "active",
+            "subscription_provider": "stripe",
             "current_period_end": period_end,
         })
         .eq("stripe_customer_id", customer_id)
@@ -278,6 +280,7 @@ async def _handle_invoice_paid(invoice) -> None:
         lambda: client.table("users")
         .update({
             "subscription_status": "active",
+            "subscription_provider": "stripe",
             "current_period_end": period_end,
         })
         .eq("stripe_customer_id", customer_id)
@@ -323,6 +326,7 @@ async def _handle_subscription_updated(subscription) -> None:
     update_data = {
         "subscription_status": status,
         "plan": plan,
+        "subscription_provider": "stripe",
     }
     if period_end_timestamp:
         update_data["current_period_end"] = datetime.fromtimestamp(period_end_timestamp, tz=timezone.utc).isoformat()
