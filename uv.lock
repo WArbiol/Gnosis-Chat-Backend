@@ -1074,7 +1074,8 @@ dependencies = [
     { name = "llama-index" },
     { name = "llama-index-embeddings-google-genai" },
     { name = "llama-index-vector-stores-qdrant" },
-    { name = "onnxruntime-gpu" },
+    { name = "onnxruntime", marker = "sys_platform == 'darwin'" },
+    { name = "onnxruntime-gpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
@@ -1121,7 +1122,8 @@ requires-dist = [
     { name = "llama-index-embeddings-google-genai" },
     { name = "llama-index-vector-stores-qdrant" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
-    { name = "onnxruntime-gpu", specifier = ">=1.24.3" },
+    { name = "onnxruntime", marker = "sys_platform == 'darwin'", specifier = ">=1.24.3" },
+    { name = "onnxruntime-gpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = ">=1.24.3" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pyjwt", specifier = ">=2.11.0" },
@@ -3148,10 +3150,10 @@ name = "onnxruntime-gpu"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flatbuffers" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "protobuf" },
+    { name = "flatbuffers", marker = "python_full_version < '3.13' or sys_platform != 'emscripten'" },
+    { name = "numpy", marker = "python_full_version < '3.13' or sys_platform != 'emscripten'" },
+    { name = "packaging", marker = "python_full_version < '3.13' or sys_platform != 'emscripten'" },
+    { name = "protobuf", marker = "python_full_version < '3.13' or sys_platform != 'emscripten'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/23/9b/2f31fa1d95dbe4e16522d76ec4d6db7f05ae7fb2c59f40bac414203aa0f8/onnxruntime_gpu-1.27.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b2b8d6afabf3c23c2c698639a16388816dc7298f388a9ddddf504b283990ea01", size = 220305746, upload-time = "2026-06-18T18:27:22.319Z" },

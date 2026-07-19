@@ -25,7 +25,8 @@ dependencies = [
     "cryptography>=46.0.5",
     "unstructured[pdf]>=0.21.5",
     "unstructured-inference>=1.2.0",
-    "onnxruntime-gpu>=1.24.3",
+    "onnxruntime-gpu>=1.24.3; sys_platform == 'linux' or sys_platform == 'win32'",
+    "onnxruntime>=1.24.3; sys_platform == 'darwin'",
     "tqdm>=4.67.3",
     "slowapi>=0.1.10",
 ]
