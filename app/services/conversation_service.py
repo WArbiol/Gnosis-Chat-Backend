@@ -131,14 +131,35 @@ class ConversationService:
 
     async def generate_title_async(self, conversation_id: str, initial_message: str):
         """Asynchronously updates the conversation title based on the first message."""
+        from app.agents.nodes.utils import get_llm
+        
         # Simple heuristic fallback (e.g., first N chars)
         short_title = (initial_message[:30] + "...") if len(initial_message) > 30 else initial_message
+        loop = asyncio.get_running_loop()
         
         try:
-            # TODO: Fase 4 - Trigger Google GenAI here to summarize real title
-            # For now, we simulate an LLM delay and update with a basic heuristic title
-            await asyncio.sleep(1) # Fake delay
-            self.client.table("conversations").update({"title": short_title}).eq("id", conversation_id).execute()
+            llm = get_llm()
+            prompt = f"Gere um título super curto e objetivo (máximo 3 a 5 palavras) para a seguinte dúvida de um usuário: '{initial_message}'"
+            system_instruction = "Você é um gerador de títulos. Retorne APENAS o título, sem aspas, sem ponto final. Capitalize a primeira letra de cada palavra principal."
+            
+            generated_title = await llm.generate_text(
+                prompt=prompt,
+                system_instruction=system_instruction,
+                temperature=0.5,
+                use_premium_model=False
+            )
+            
+            final_title = generated_title.strip().strip('"').strip("'")
+            if not final_title or len(final_title) > 50:
+                final_title = short_title
+                
+            await loop.run_in_executor(
+                None,
+                lambda: self.client.table("conversations").update({"title": final_title}).eq("id", conversation_id).execute()
+            )
         except Exception as e:
             print(f"Error generating title for {conversation_id}: {e}")
-            self.client.table("conversations").update({"title": short_title}).eq("id", conversation_id).execute()
+            await loop.run_in_executor(
+                None,
+                lambda: self.client.table("conversations").update({"title": short_title}).eq("id", conversation_id).execute()
+            )

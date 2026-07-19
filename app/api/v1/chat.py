@@ -1,7 +1,7 @@
 import json
 import logging
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -11,6 +11,8 @@ from app.schemas.chat import ChatRequest, UIFilters
 from app.schemas.user import UserProfile
 from app.domain.exceptions import QuotaExceededException
 from app.core.limiter import limiter
+from app.services.conversation_service import ConversationService
+from app.api.v1.conversations import get_conversation_service
 
 # Use Cases
 from app.application.use_cases.ask_rag_use_case import AskRagUseCase
@@ -74,10 +76,27 @@ class ClarifyRequest(BaseModel):
 async def ask(
     request: Request,
     payload: ChatRequest,
+    background_tasks: BackgroundTasks,
     user: UserProfile = Depends(get_current_user),
-    use_case: AskRagUseCase = Depends(get_ask_rag_use_case)
+    use_case: AskRagUseCase = Depends(get_ask_rag_use_case),
+    conv_service: ConversationService = Depends(get_conversation_service)
 ):
     """Realiza uma pergunta ao chat e inicia o fluxo RAG agêntico via Server-Sent Events (SSE)."""
+    
+    # Verifica se a conversa é nova para gerar título inteligente
+    if payload.conversation_id:
+        try:
+            conv = conv_service.get_conversation(str(payload.conversation_id))
+            # Se for a primeira mensagem (0 ou 1 dependendo se o flutter salvou), ou se chama "Nova conversa"
+            if conv.title == "Nova conversa":
+                background_tasks.add_task(
+                    conv_service.generate_title_async,
+                    str(payload.conversation_id),
+                    payload.query
+                )
+        except Exception as e:
+            logger.warning(f"Erro ao verificar título da conversa {payload.conversation_id}: {e}")
+
     
     async def event_generator():
         try:

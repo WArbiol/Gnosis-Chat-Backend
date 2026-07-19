@@ -14,9 +14,21 @@ from app.core.limiter import limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    # TODO: initialize Qdrant client, LangGraph pipeline on startup
+    import logging
+    from app.agents.nodes.utils import get_llm, get_vector_store, get_reranker
+    from app.agents.graph import compiled_graph
+    
+    logger = logging.getLogger("startup")
+    logger.info("Iniciando o aquecimento (warm-up) das conexões...")
+    
+    # Isso forçará a inicialização do QdrantClient, Gemini e Vertex
+    get_llm()
+    get_vector_store()
+    get_reranker()
+    
+    logger.info("Conexões aquecidas. LangGraph compilado e pronto para requisições.")
     yield
-    # TODO: cleanup resources on shutdown
+    logger.info("Encerrando recursos e conexões...")
 
 
 def create_app() -> FastAPI:
