@@ -8,5 +8,10 @@ async def direct_response_node(state: GraphState, config: RunnableConfig) -> dic
     direct_answer = state.get("direct_answer", "Como posso te ajudar hoje?")
     return {
         "answer": direct_answer,
-        "citations": []
+        "citations": [],
+        "suggested_followups": [
+            "O que é o Ego no gnosticismo?",
+            "Como praticar a meditação diária?",
+            "Quais são os rituais de defesa espiritual?"
+        ]
     }
