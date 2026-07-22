@@ -11,6 +11,19 @@ class SupabaseDatabase(DatabaseGateway):
     def __init__(self, client: Client) -> None:
         self.client = client
 
+    def _execute(self, query_builder_fn, max_retries: int = 3):
+        from app.core.dependencies import get_supabase_client
+        for attempt in range(max_retries):
+            try:
+                return query_builder_fn(self.client).execute()
+            except Exception as e:
+                err_str = f"{type(e).__name__}: {str(e)}"
+                if ("RemoteProtocolError" in err_str or "ConnectionTerminated" in err_str or "httpcore" in err_str or "httpx" in err_str) and attempt < max_retries - 1:
+                    print(f"DEBUG DB: Connection dropped ({err_str}), re-instantiating Supabase client (attempt {attempt + 1}/{max_retries})...")
+                    self.client = get_supabase_client()
+                    continue
+                raise
+
     async def get_user_profile(self, user_id: str, email: str | None = None) -> UserProfile:
         from app.core.config import settings
         # Bypass imediato para tokens de teste
@@ -30,19 +43,21 @@ class SupabaseDatabase(DatabaseGateway):
             try:
                 response = await loop.run_in_executor(
                     None,
-                    lambda: self.client.table("users")
-                    .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
-                    .eq("id", user_id)
-                    .execute()
+                    lambda: self._execute(
+                        lambda c: c.table("users")
+                        .select("id, email, avatar_url, plan, chamber_level, question_count, last_reset_at, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
+                        .eq("id", user_id)
+                    )
                 )
             except Exception as select_err:
                 print(f"DEBUG DB: Falha ao carregar last_reset_at ({select_err}). Tentando fallback.")
                 response = await loop.run_in_executor(
                     None,
-                    lambda: self.client.table("users")
-                    .select("id, email, avatar_url, plan, chamber_level, question_count, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
-                    .eq("id", user_id)
-                    .execute()
+                    lambda: self._execute(
+                        lambda c: c.table("users")
+                        .select("id, email, avatar_url, plan, chamber_level, question_count, created_at, stripe_customer_id, subscription_status, subscription_provider, current_period_end")
+                        .eq("id", user_id)
+                    )
                 )
             
             if not response.data:
@@ -123,10 +138,11 @@ class SupabaseDatabase(DatabaseGateway):
                     print(f"DEBUG DB: Resetando question_count para o usuário {user_id} ({plan.value}).")
                     await loop.run_in_executor(
                         None,
-                        lambda: self.client.table("users")
-                        .update({"question_count": 0, "last_reset_at": now.isoformat()})
-                        .eq("id", user_id)
-                        .execute()
+                        lambda: self._execute(
+                            lambda c: c.table("users")
+                            .update({"question_count": 0, "last_reset_at": now.isoformat()})
+                            .eq("id", user_id)
+                        )
                     )
                     question_count = 0
                     last_reset = now
@@ -181,10 +197,11 @@ class SupabaseDatabase(DatabaseGateway):
             
             await loop.run_in_executor(
                 None,
-                lambda: self.client.table("users")
-                .update({"question_count": new_count})
-                .eq("id", user_id)
-                .execute()
+                lambda: self._execute(
+                    lambda c: c.table("users")
+                    .update({"question_count": new_count})
+                    .eq("id", user_id)
+                )
             )
         except Exception as e:
             if settings.app_env == "development":
@@ -206,12 +223,13 @@ class SupabaseDatabase(DatabaseGateway):
             # Query: Conta mensagens do usuário feitas nas conversas dele
             response = await loop.run_in_executor(
                 None,
-                lambda: self.client.table("messages")
-                .select("id, created_at, role, conversations!inner(user_id)")
-                .eq("role", "user")
-                .eq("conversations.user_id", user_id)
-                .gte("created_at", seven_days_ago)
-                .execute()
+                lambda: self._execute(
+                    lambda c: c.table("messages")
+                    .select("id, created_at, role, conversations!inner(user_id)")
+                    .eq("role", "user")
+                    .eq("conversations.user_id", user_id)
+                    .gte("created_at", seven_days_ago)
+                )
             )
             
             return len(response.data)
@@ -246,9 +264,9 @@ class SupabaseDatabase(DatabaseGateway):
         try:
             response = await loop.run_in_executor(
                 None,
-                lambda: self.client.table("messages")
-                .insert(payload)
-                .execute()
+                lambda: self._execute(
+                    lambda c: c.table("messages").insert(payload)
+                )
             )
             
             if not response.data:
@@ -274,12 +292,13 @@ class SupabaseDatabase(DatabaseGateway):
 
             response = await loop.run_in_executor(
                 None,
-                lambda: self.client.table("messages")
-                .select("role, content")
-                .eq("conversation_id", conversation_id)
-                .order("created_at", desc=True)
-                .limit(limit)
-                .execute()
+                lambda: self._execute(
+                    lambda c: c.table("messages")
+                    .select("role, content")
+                    .eq("conversation_id", conversation_id)
+                    .order("created_at", desc=True)
+                    .limit(limit)
+                )
             )
 
             if not response.data:
@@ -322,9 +341,9 @@ class SupabaseDatabase(DatabaseGateway):
         try:
             await loop.run_in_executor(
                 None,
-                lambda: self.client.table("citations")
-                .insert(payload)
-                .execute()
+                lambda: self._execute(
+                    lambda c: c.table("citations").insert(payload)
+                )
             )
         except Exception as e:
             from app.core.config import settings
@@ -339,10 +358,11 @@ class SupabaseDatabase(DatabaseGateway):
             loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 None,
-                lambda: self.client.table("pdf_catalog")
-                .select("book_name, author, chamber")
-                .eq("chamber", 2)
-                .execute()
+                lambda: self._execute(
+                    lambda c: c.table("pdf_catalog")
+                    .select("book_name, author, chamber")
+                    .eq("chamber", 2)
+                )
             )
             return response.data or []
         except Exception as e:
