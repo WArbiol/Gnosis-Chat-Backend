@@ -185,12 +185,17 @@ class AskRagUseCase:
             # Tratar caso de Human-in-the-Loop
             is_hil = next_step == "ask_user" or answer.startswith("PAUSE_HIL:")
             
+            suggested_followups = final_state.get("suggested_followups") or []
+
             # Se não for HIL, persistir e descontar cota
             if not is_hil:
                 # Salvar mensagem gerada pelo RAG no Supabase com o resumo (recap) formatado em blockquote
                 db_content = answer
                 if recap:
                     db_content = f"{answer}\n\n> {recap}"
+                if suggested_followups:
+                    import json
+                    db_content = f"{db_content}\n<!--followups:{json.dumps(suggested_followups, ensure_ascii=False)}-->"
                 msg_id = await self.database.save_message(
                     conversation_id=conversation_id,
                     role="assistant",
