@@ -62,9 +62,8 @@ def get_conversation(
     service: ConversationService = Depends(get_conversation_service)
 ):
     """Get conversation details with its primary messages."""
-    try:
-        conv = service.get_conversation(str(conversation_id))
-    except Exception:
+    conv = service.get_conversation(str(conversation_id))
+    if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
     if str(conv.user_id) != str(current_user.id):
