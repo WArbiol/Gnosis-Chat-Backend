@@ -215,12 +215,16 @@ class AskRagUseCase:
                     route="ASK_USER"
                 )
 
-            # Emitir evento final completo
+            suggested_followups = final_state.get("suggested_followups") or []
+
+            # Emitir evento final completo (garantindo que o prefixo interno PAUSE_HIL seja removido)
+            clean_answer = answer.replace("PAUSE_HIL: ", "") if is_hil else answer
             yield {
                 "event": "final",
-                "answer": answer,
+                "answer": clean_answer,
                 "citations": [cit.model_dump() for cit in citations],
                 "recap": recap,
+                "suggested_followups": suggested_followups,
                 "conversation_id": conversation_id,
                 "is_hil": is_hil
             }

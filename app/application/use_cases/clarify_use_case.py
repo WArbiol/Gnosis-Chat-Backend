@@ -143,12 +143,16 @@ class ClarifyUseCase:
                     route="ASK_USER"
                 )
 
-            # Emitir resultado final
+            suggested_followups = final_state.get("suggested_followups") or []
+
+            # Emitir resultado final (removendo prefixo interno PAUSE_HIL se houver)
+            clean_answer = answer.replace("PAUSE_HIL: ", "") if is_hil else answer
             yield {
                 "event": "final",
-                "answer": answer,
+                "answer": clean_answer,
                 "citations": [cit.model_dump() for cit in citations],
                 "recap": recap,
+                "suggested_followups": suggested_followups,
                 "conversation_id": conversation_id,
                 "is_hil": is_hil
             }
