@@ -96,6 +96,8 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
             "e mencionar nomes de livros/capítulos ou páginas específicas, você deve usar esse feedback para refinar sua busca.\n"
             "Você pode gerar novas sub-queries focando no que falta, e/ou usar 'inferred_page_start' e 'inferred_page_end' "
             "para focar a busca vetorial em páginas específicas se o Critique tiver sugerido ou se fizer sentido no contexto.\n"
+            "Se o resultado da pesquisa anterior revelou que o termo é altamente ambíguo ou amplo nas obras (com vários significados distintos), "
+            "você pode optar por mudar a rota para 'ask_user' para oferecer ao usuário as opções encontradas no acervo.\n"
             "---------------------------------------------------\n\n"
         )
 
@@ -107,8 +109,9 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "do assistente ou o funcionamento do aplicativo (ex: 'quem é você?', 'o que você faz?'), ou quando o usuário "
         "comandar explicitamente para não pesquisar (ex: 'não faça pesquisa', 'me responda diretamente'). Nesses casos, "
         "forneça obrigatoriamente a resposta completa e amigável em 'direct_answer' (pt-BR).\n"
-        "2. 'ask_user': DEVE ser usada se a pergunta do usuário for tão vaga ou incompleta que impeça qualquer busca "
-        "(ex: 'como fazer?', 'fale sobre o livro' sem dizer qual livro ou o quê). Nesse caso, formule uma pergunta esclarecedora em 'clarification_question' (pt-BR).\n"
+        "2. 'ask_user': Deve ser usada quando:\n"
+        "   - A pergunta inicial for extremamente vaga e sem contexto (ex: 'como fazer?', 'fale sobre o livro').\n"
+        "   - OU se, após uma rodada de pesquisa ('researcher'), os trechos encontrados mostrarem que o assunto possui significados completamente distintos no acervo (ex: vários selos ou rituais totalmente diferentes), tornando mais produtivo perguntar ao usuário qual caminho ele deseja aprofundar. Use essa opção com parcimônia (apenas quando houver real ambiguidade no acervo), oferecendo opções claras na 'clarification_question' (pt-BR).\n"
         "3. 'researcher': ROTA PADRÃO E PRINCIPAL. Deve ser usada para quase todas as perguntas sobre conceitos teológicos, psicológicos ou esotéricos do acervo gnóstico (ex: 'o que é o Ego?', 'aspectos do Divino Daimon', 'morte do ego') ou reflexões gerais que o acervo possa responder.\n"
         "Você também deve extrair filtros de metadados inferidos a partir do texto da pergunta (livros, autores, capítulos) "
         "e decompor a query em até 3 sub-queries focadas se a pergunta contiver múltiplos tópicos (ex: 'fale sobre o Absoluto e a Caridade').\n"

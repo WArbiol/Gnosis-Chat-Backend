@@ -41,7 +41,8 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
         "Diretrizes:\n"
         "1. Se os chunks respondem de forma completa e satisfatória, defina o veredito como 'sufficient'.\n"
         "2. Se faltar alguma informação importante, defina o veredito como 'insufficient'. Ao invés de apenas classificar de forma genérica, você deve retornar de forma detalhada e construtiva no campo 'feedback' o que já foi encontrado de importante nas fontes atuais E apontar exatamente o que ainda está faltando para responder à pergunta.\n"
-        "3. Se você souber ou suspeitar de pistas adicionais que ajudem no refino (como livros, autores, capítulos, termos de busca mais específicos ou até intervalos de páginas específicas), cite-os no feedback. Se não houver pistas concretas, descreva apenas conceitualmente o que falta. Lembre ao Orquestrador que ele pode aplicar qualquer um desses filtros, inclusive restringir a busca a uma página ou intervalo de páginas se você sugerir (pois o banco possui o campo 'page')."
+        "3. Se você souber ou suspeitar de pistas adicionais que ajudem no refino (como livros, autores, capítulos, termos de busca mais específicos ou até intervalos de páginas específicas), cite-os no feedback. Se não houver pistas concretas, descreva apenas conceitualmente o que falta. Lembre ao Orquestrador que ele pode aplicar qualquer um desses filtros, inclusive restringir a busca a uma página ou intervalo de páginas se você sugerir (pois o banco possui o campo 'page').\n"
+        "4. Se os textos recuperados revelarem que o termo pesquisado possui múltiplos significados ou aplicações distintas nas obras, mencione essa diversidade no feedback para que o Orquestrador possa considerar se é o caso de solicitar esclarecimento ao usuário."
     )
 
     prompt = (
