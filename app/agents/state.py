@@ -49,6 +49,7 @@ class GraphState(TypedDict, total=False):
 
     # --- Recap ---
     recap: str                          # Resumo conciso de 2-3 frases
+    suggested_followups: list[str]       # 2 a 3 perguntas de continuação sugeridas ao usuário
 
     # --- Chamber Access warning ---
     chamber_warning: str                # Alerta de conteúdo restrito da Segunda Câmara
