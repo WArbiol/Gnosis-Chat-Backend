@@ -193,15 +193,13 @@ class AskRagUseCase:
                 db_content = answer
                 if recap:
                     db_content = f"{answer}\n\n> {recap}"
-                if suggested_followups:
-                    import json
-                    db_content = f"{db_content}\n<!--followups:{json.dumps(suggested_followups, ensure_ascii=False)}-->"
                 msg_id = await self.database.save_message(
                     conversation_id=conversation_id,
                     role="assistant",
                     content=db_content,
                     route=final_state.get("next_step", "RAG"),
-                    token_count=len(db_content.split()) # estimativa simples
+                    token_count=len(db_content.split()),
+                    suggested_followups=suggested_followups
                 )
                 
                 # Salvar citações

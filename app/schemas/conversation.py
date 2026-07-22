@@ -34,6 +34,7 @@ class MessageResponse(BaseModel):
     token_count: int | None = 0
     created_at: datetime
     citations: list[CitationResponse] = []
+    suggested_followups: list[str] = []
 
 
 # Conversations

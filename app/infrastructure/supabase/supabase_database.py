@@ -227,7 +227,8 @@ class SupabaseDatabase(DatabaseGateway):
         role: str,
         content: str,
         route: str | None = None,
-        token_count: int | None = None
+        token_count: int | None = None,
+        suggested_followups: list[str] | None = None
     ) -> str:
         loop = asyncio.get_running_loop()
         
@@ -240,6 +241,8 @@ class SupabaseDatabase(DatabaseGateway):
             payload["route"] = route
         if token_count is not None:
             payload["token_count"] = token_count
+        if suggested_followups is not None:
+            payload["suggested_followups"] = suggested_followups
         try:
             response = await loop.run_in_executor(
                 None,

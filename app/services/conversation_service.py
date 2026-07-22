@@ -71,7 +71,7 @@ class ConversationService:
         messages = []
         for m in msgs_result:
             m["citations"] = m.get("citations", [])
-            # In Supabase, nested select returns a list of dicts. We map these to our schemas in the router.
+            m["suggested_followups"] = m.get("suggested_followups") or []
             messages.append(MessageResponse(**m))
             
         return ConversationDetail(
