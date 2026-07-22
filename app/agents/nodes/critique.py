@@ -36,7 +36,7 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
 
     # Prompt para a LLM avaliar relevância
     system_instruction = (
-        "Você é o Critique do sistema Gnosis Chat. Sua tarefa é analisar se as fontes recuperadas (chunks) "
+        "Você é o Critique do sistema Pergunte à Gnosis. Sua tarefa é analisar se as fontes recuperadas (chunks) "
         "são suficientes e relevantes para responder de forma completa à pergunta do usuário.\n"
         "Diretrizes:\n"
         "1. Se os chunks respondem de forma completa e satisfatória, defina o veredito como 'sufficient'.\n"

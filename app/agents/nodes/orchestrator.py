@@ -102,7 +102,7 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         )
 
     system_instruction = (
-        "Você é o Orchestrator do sistema Gnosis Chat, um RAG sobre obras gnósticas.\n"
+        "Você é o Orchestrator do sistema Pergunte à Gnosis, um RAG sobre obras gnósticas.\n"
         "Sua função é analisar a query do usuário e o histórico para decidir a melhor rota:\n"
         "1. 'direct_response': DEVE ser usada para saudações, despedidas, conversas informais (chit-chat), "
         "perguntas gerais do mundo real (ex: 'que horas são?', 'como está o tempo?'), perguntas sobre a identidade "

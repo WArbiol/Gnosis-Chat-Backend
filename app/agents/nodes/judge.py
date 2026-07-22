@@ -35,7 +35,7 @@ async def judge_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
 
     # Prompt para auditar a fidelidade
     system_instruction = (
-        "Você é o Judge do sistema Gnosis Chat. Sua única responsabilidade é realizar uma auditoria rígida "
+        "Você é o Judge do sistema Pergunte à Gnosis. Sua única responsabilidade é realizar uma auditoria rígida "
         "contra alucinações na resposta gerada pelo Writer.\n"
         "Regras de Auditoria:\n"
         "1. Compare cada afirmação na resposta com as fontes originais fornecidas.\n"

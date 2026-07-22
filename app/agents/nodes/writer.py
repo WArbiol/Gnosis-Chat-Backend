@@ -37,7 +37,7 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         )
 
     system_instruction = (
-        "Você é o Writer do sistema Gnosis Chat. Sua tarefa é redigir uma resposta teológica e esotérica "
+        "Você é o Writer do sistema Pergunte à Gnosis. Sua tarefa é redigir uma resposta teológica e esotérica "
         "extremamente profunda, clara e fiel às fontes fornecidas. Não invente nenhuma informação.\n"
         "Regras estritas:\n"
         "1. Escreva em formato markdown limpo e elegante.\n"
