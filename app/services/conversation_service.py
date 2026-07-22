@@ -17,12 +17,27 @@ class ConversationService:
     def __init__(self, client: Client):
         self.client = client
 
+    def _execute(self, query_builder_fn, max_retries: int = 3):
+        from app.core.dependencies import get_supabase_client
+        for attempt in range(max_retries):
+            try:
+                return query_builder_fn(self.client).execute()
+            except Exception as e:
+                err_str = f"{type(e).__name__}: {str(e)}"
+                if ("RemoteProtocolError" in err_str or "ConnectionTerminated" in err_str or "httpcore" in err_str or "httpx" in err_str) and attempt < max_retries - 1:
+                    print(f"DEBUG DB: Connection dropped ({err_str}), re-instantiating Supabase client (attempt {attempt + 1}/{max_retries})...")
+                    self.client = get_supabase_client()
+                    continue
+                raise
+
     def list_conversations(self, limit: int = 20, cursor: str | None = None) -> PaginatedResponse[ConversationResponse]:
-        query = self.client.table("conversations").select("*").order("updated_at", desc=True).limit(limit + 1)
-        if cursor:
-            query = query.lt("updated_at", cursor)
-            
-        result = query.execute().data
+        def _build(client: Client):
+            q = client.table("conversations").select("*").order("updated_at", desc=True).limit(limit + 1)
+            if cursor:
+                q = q.lt("updated_at", cursor)
+            return q
+
+        result = self._execute(_build).data
         
         has_more = len(result) > limit
         if has_more:
@@ -46,10 +61,9 @@ class ConversationService:
         )
 
     def create_conversation(self, title: str, user_id: str) -> ConversationResponse:
-        result = self.client.table("conversations").insert({
-            "title": title,
-            "user_id": user_id
-        }).execute().data[0]
+        result = self._execute(
+            lambda c: c.table("conversations").insert({"title": title, "user_id": user_id})
+        ).data[0]
         
         return ConversationResponse(
             id=result["id"],
@@ -60,56 +74,51 @@ class ConversationService:
         )
 
     def get_conversation(self, conversation_id: str) -> ConversationDetail | None:
-        from app.core.dependencies import get_supabase_client
-        for attempt in range(2):
-            try:
-                # Fetch conversation
-                conv_query = self.client.table("conversations").select("*").eq("id", conversation_id).execute().data
-                if not conv_query:
-                    return None
-                conv_result = conv_query[0]
-                
-                # Fetch initial messages (first page)
-                msgs_result = self.client.table("messages").select(
-                    "*, citations(*)"
-                ).eq("conversation_id", conversation_id).order("created_at", desc=False).limit(50).execute().data
-                
-                messages = []
-                for m in msgs_result:
-                    m["citations"] = m.get("citations", [])
-                    m["suggested_followups"] = m.get("suggested_followups") or []
-                    messages.append(MessageResponse(**m))
-                    
-                return ConversationDetail(
-                    id=conv_result["id"],
-                    user_id=conv_result["user_id"],
-                    title=conv_result["title"],
-                    created_at=datetime.fromisoformat(conv_result["created_at"]),
-                    updated_at=datetime.fromisoformat(conv_result["updated_at"]),
-                    messages=messages
-                )
-            except Exception as e:
-                err_str = str(e)
-                if ("RemoteProtocolError" in err_str or "ConnectionTerminated" in err_str or "httpcore" in err_str) and attempt == 0:
-                    # Re-instantiate client to get a fresh HTTP/2 connection pool
-                    self.client = get_supabase_client()
-                    continue
-                raise
+        # Fetch conversation
+        conv_query = self._execute(
+            lambda c: c.table("conversations").select("*").eq("id", conversation_id)
+        ).data
+        if not conv_query:
+            return None
+        conv_result = conv_query[0]
+        
+        # Fetch initial messages (first page)
+        msgs_result = self._execute(
+            lambda c: c.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(50)
+        ).data
+        
+        messages = []
+        for m in msgs_result:
+            m["citations"] = m.get("citations", [])
+            m["suggested_followups"] = m.get("suggested_followups") or []
+            messages.append(MessageResponse(**m))
+            
+        return ConversationDetail(
+            id=conv_result["id"],
+            user_id=conv_result["user_id"],
+            title=conv_result["title"],
+            created_at=datetime.fromisoformat(conv_result["created_at"]),
+            updated_at=datetime.fromisoformat(conv_result["updated_at"]),
+            messages=messages
+        )
 
     def delete_conversation(self, conversation_id: str) -> None:
-        self.client.table("conversations").delete().eq("id", conversation_id).execute()
+        self._execute(lambda c: c.table("conversations").delete().eq("id", conversation_id))
 
     def update_conversation(self, conversation_id: str, title: str) -> ConversationResponse:
-        result = self.client.table("conversations").update({"title": title}).eq("id", conversation_id).execute().data[0]
+        result = self._execute(
+            lambda c: c.table("conversations").update({"title": title}).eq("id", conversation_id)
+        ).data[0]
         return ConversationResponse(**result)
 
     def list_messages(self, conversation_id: str, limit: int = 50, cursor: str | None = None) -> PaginatedResponse[MessageResponse]:
-        query = self.client.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(limit + 1)
-        
-        if cursor:
-            query = query.gt("created_at", cursor)
-            
-        result = query.execute().data
+        def _build(client: Client):
+            q = client.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(limit + 1)
+            if cursor:
+                q = q.gt("created_at", cursor)
+            return q
+
+        result = self._execute(_build).data
         
         has_more = len(result) > limit
         if has_more:
@@ -134,7 +143,7 @@ class ConversationService:
         }
         print(f"DEBUG DB: Inserting message: {payload}")
         try:
-            result = self.client.table("messages").insert(payload).execute().data[0]
+            result = self._execute(lambda c: c.table("messages").insert(payload)).data[0]
             print(f"DEBUG DB: Message inserted successfully: {result.get('id')}")
             result["citations"] = []
             return MessageResponse(**result)
@@ -168,11 +177,12 @@ class ConversationService:
                 
             await loop.run_in_executor(
                 None,
-                lambda: self.client.table("conversations").update({"title": final_title}).eq("id", conversation_id).execute()
+                lambda: self._execute(lambda c: c.table("conversations").update({"title": final_title}).eq("id", conversation_id))
             )
         except Exception as e:
             print(f"Error generating title for {conversation_id}: {e}")
             await loop.run_in_executor(
                 None,
-                lambda: self.client.table("conversations").update({"title": short_title}).eq("id", conversation_id).execute()
+                lambda: self._execute(lambda c: c.table("conversations").update({"title": short_title}).eq("id", conversation_id))
             )
+

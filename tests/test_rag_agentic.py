@@ -149,9 +149,10 @@ class MockDatabase(DatabaseGateway):
         role: str,
         content: str,
         route: str | None = None,
-        token_count: int | None = None
+        token_count: int | None = None,
+        suggested_followups: list[str] | None = None
     ) -> str:
-        self.messages_saved.append({"role": role, "content": content, "route": route})
+        self.messages_saved.append({"role": role, "content": content, "route": route, "suggested_followups": suggested_followups})
         return "msg-id-123"
 
     async def save_citations(self, message_id: str, citations: list[CitationDraft]) -> None:
