@@ -113,6 +113,18 @@ class AskRagUseCase:
         # 5. Executar o grafo em streaming de eventos
         final_state = {}
         
+        STATUS_MESSAGES = {
+            "orchestrator": "Compreendendo o propósito e o escopo...",
+            "researcher": "Pesquisando os ensinamentos no acervo da Gnosis...",
+            "critique": "Avaliando a relevância dos trechos encontrados...",
+            "writer": "Redigindo resposta clara e fundamentada...",
+            "judge": "Verificando a exatidão e fidelidade das citações...",
+            "recap": "Sintetizando a jornada de aprendizado...",
+            "direct_response": "Elaborando resposta direta...",
+            "ask_user": "Aguardando seus esclarecimentos..."
+        }
+        last_emitted_node = None
+
         try:
             async for event in compiled_graph.astream_events(
                 initial_state,
@@ -122,40 +134,13 @@ class AskRagUseCase:
                 event_type = event.get("event")
                 node_name = event.get("metadata", {}).get("langgraph_node")
 
-                # Transições de nós (Status)
-                if event_type == "on_chain_start" and event.get("name") == "LangGraph":
+                # Transições de nós (Status) em tempo real
+                if event_type == "on_chain_start" and node_name in STATUS_MESSAGES and node_name != last_emitted_node:
+                    last_emitted_node = node_name
                     yield {
                         "event": "status",
-                        "agent": "orchestrator",
-                        "message": "Inicializando orquestração..."
-                    }
-                
-                elif event_type == "on_chain_start" and event.get("name") in [
-                    "orchestrator", "researcher", "critique", "writer", "judge", "recap", "direct_response", "ask_user"
-                ]:
-                    node = event.get("name")
-                    msg = "Processando..."
-                    if node == "orchestrator":
-                        msg = "Orquestrador decidindo próximos passos..."
-                    elif node == "researcher":
-                        msg = "Pesquisadores vasculhando o corpus de PDFs no Qdrant..."
-                    elif node == "critique":
-                        msg = "Critique avaliando a qualidade dos trechos encontrados..."
-                    elif node == "writer":
-                        msg = "Writer redigindo a resposta detalhada..."
-                    elif node == "judge":
-                        msg = "Judge auditando a resposta contra alucinações..."
-                    elif node == "recap":
-                        msg = "Recap sintetizando a resposta..."
-                    elif node == "direct_response":
-                        msg = "Gerando resposta rápida..."
-                    elif node == "ask_user":
-                        msg = "Aguardando esclarecimentos..."
-
-                    yield {
-                        "event": "status",
-                        "agent": node,
-                        "message": msg
+                        "agent": node_name,
+                        "message": STATUS_MESSAGES[node_name]
                     }
 
                 # Streaming de tokens do Writer via evento customizado
