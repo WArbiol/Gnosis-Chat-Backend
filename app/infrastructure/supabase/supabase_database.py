@@ -320,22 +320,21 @@ class SupabaseDatabase(DatabaseGateway):
     async def save_citations(
         self,
         message_id: str,
-        citations: list[CitationDraft]
+        citations: list[dict]
     ) -> None:
+        """Salva as referências extraídas pelo RAG associadas à mensagem."""
         if not citations:
             return
             
         loop = asyncio.get_running_loop()
         
-        # Formata o payload de inserção em lote
         payload = []
         for idx, cit in enumerate(citations):
-            # No Supabase o campo é pdf_name. Salvamos o nome do livro
             payload.append({
                 "message_id": message_id,
-                "pdf_name": cit.book_name,
-                "page": cit.page,
-                "snippet": cit.snippet,
+                "pdf_name": cit.get("book_name"),
+                "page": cit.get("page"),
+                "snippet": cit.get("snippet"),
                 "sort_order": idx
             })
         try:

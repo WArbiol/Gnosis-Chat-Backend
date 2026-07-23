@@ -210,7 +210,7 @@ class AskRagUseCase:
             yield {
                 "event": "final",
                 "answer": clean_answer,
-                "citations": [cit.model_dump() for cit in citations],
+                "citations": [cit if isinstance(cit, dict) else cit.model_dump() for cit in citations],
                 "recap": recap,
                 "suggested_followups": suggested_followups,
                 "conversation_id": conversation_id,
