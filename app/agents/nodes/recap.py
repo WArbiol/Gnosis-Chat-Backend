@@ -25,7 +25,7 @@ async def recap_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
         "Você é o Recap do sistema Pergunte à Gnosis.\n"
         "Sua função é gerar dois elementos:\n"
         "1. 'recap': Sintetize em no máximo 3 frases curtas o percurso de aprendizado da resposta (ex: 'Partimos de [Conceito A], exploramos [Tópico B] e concluímos com [Conceito C]').\n"
-        "2. 'suggested_followups': Gere 2 a 3 perguntas de continuação inteligentes, instigantes e curtas (máximo 10 palavras cada) que o usuário poderia fazer a seguir para aprofundar o estudo. Escreva em português do Brasil (pt-BR)."
+        "2. 'suggested_followups': Gere 2 a 3 perguntas de continuação inteligentes, instigantes e curtas (máximo 10 palavras cada) que o usuário poderia fazer a seguir para aprofundar o estudo. Escreva em português do Brasil (pt-BR). IMPORTANTE: Use sempre a grafia 'Gnosis' em vez de 'Gnose'."
     )
 
     prompt = (
