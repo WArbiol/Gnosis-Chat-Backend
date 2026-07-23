@@ -17,7 +17,8 @@ class QdrantVectorStore(VectorStoreGateway):
         if settings.qdrant_api_key and settings.qdrant_cloud_url:
             self.client = QdrantClient(
                 url=settings.qdrant_cloud_url,
-                api_key=settings.qdrant_api_key
+                api_key=settings.qdrant_api_key,
+                timeout=20.0
             )
         else:
             url_or_path = settings.qdrant_url
