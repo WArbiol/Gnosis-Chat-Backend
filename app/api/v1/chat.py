@@ -125,7 +125,15 @@ async def ask(
             }
             yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 @router.post("/clarify")
 async def clarify(
