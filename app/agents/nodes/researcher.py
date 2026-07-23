@@ -81,7 +81,7 @@ async def process_single_query(
                 chamber=item["chamber"],
                 chapter=item["chapter"],
                 snippet=item["text"]
-            )
+            ).model_dump()
         )
         scores.append(item["score"])
 

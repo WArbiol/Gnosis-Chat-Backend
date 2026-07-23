@@ -26,13 +26,18 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
     # 2. Construir contexto para o redator
     context_str = ""
     for idx, (text, cit) in enumerate(zip(chunks, available_citations)):
+        b_name = cit.get("book_name") if isinstance(cit, dict) else getattr(cit, "book_name", "Desconhecido")
+        b_author = cit.get("author") if isinstance(cit, dict) else getattr(cit, "author", "Desconhecido")
+        b_page = cit.get("page") if isinstance(cit, dict) else getattr(cit, "page", 1)
+        b_chamber = cit.get("chamber") if isinstance(cit, dict) else getattr(cit, "chamber", 1)
+        b_chapter = cit.get("chapter") if isinstance(cit, dict) else getattr(cit, "chapter", "N/A")
         context_str += (
             f"[Fonte #{idx + 1}]\n"
-            f"Livro: {cit.book_name}\n"
-            f"Autor: {cit.author}\n"
-            f"Página: {cit.page}\n"
-            f"Câmara: {cit.chamber}\n"
-            f"Capítulo: {cit.chapter or 'N/A'}\n"
+            f"Livro: {b_name}\n"
+            f"Autor: {b_author}\n"
+            f"Página: {b_page}\n"
+            f"Câmara: {b_chamber}\n"
+            f"Capítulo: {b_chapter or 'N/A'}\n"
             f"Texto: {text}\n\n"
         )
 
@@ -75,7 +80,9 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
     seen = set()
     final_citations = []
     for cit in available_citations:
-        key = (cit.book_name, cit.page)
+        b_name = cit.get("book_name") if isinstance(cit, dict) else getattr(cit, "book_name", "Desconhecido")
+        b_page = cit.get("page") if isinstance(cit, dict) else getattr(cit, "page", 1)
+        key = (b_name, b_page)
         if key not in seen:
             seen.add(key)
             final_citations.append(cit)
