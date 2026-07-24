@@ -123,103 +123,125 @@ class AskRagUseCase:
             "direct_response": "Elaborando resposta direta...",
             "ask_user": "Aguardando seus esclarecimentos..."
         }
+        
+        queue = asyncio.Queue()
+
+        async def run_graph_and_save():
+            final_state = {}
+            try:
+                async for event in compiled_graph.astream_events(
+                    initial_state,
+                    config=config,
+                    version="v2"
+                ):
+                    await queue.put({"type": "event", "data": event})
+                    if event.get("event") == "on_chain_end" and event.get("name") == "LangGraph":
+                        final_state = event.get("data", {}).get("output", {})
+
+                # 6. Processamento pós-grafo (Persistir Resposta e Citações)
+                answer = final_state.get("answer", "")
+                citations = final_state.get("citations") or []
+                recap = final_state.get("recap", "")
+                next_step = final_state.get("next_step")
+
+                # Se houver aviso de câmara restrita, anexar ao final da resposta
+                chamber_warning = final_state.get("chamber_warning")
+                if chamber_warning and answer:
+                    answer = f"{answer}\n\n{chamber_warning}"
+
+                # Tratar caso de Human-in-the-Loop
+                is_hil = next_step == "ask_user" or answer.startswith("PAUSE_HIL:")
+                suggested_followups = final_state.get("suggested_followups") or []
+
+                # Se não for HIL, persistir e descontar cota
+                if not is_hil:
+                    db_content = answer
+                    if recap:
+                        db_content = f"{answer}\n\n> {recap}"
+                    msg_id = await self.database.save_message(
+                        conversation_id=conversation_id,
+                        role="assistant",
+                        content=db_content,
+                        route=final_state.get("next_step", "RAG"),
+                        token_count=len(db_content.split()),
+                        suggested_followups=suggested_followups
+                    )
+                    
+                    if citations:
+                        await self.database.save_citations(msg_id, citations)
+                    
+                    await self.database.increment_user_question_count(user_id)
+                else:
+                    clean_question = answer.replace("PAUSE_HIL: ", "")
+                    await self.database.save_message(
+                        conversation_id=conversation_id,
+                        role="assistant",
+                        content=clean_question,
+                        route="ASK_USER"
+                    )
+
+                clean_answer = answer.replace("PAUSE_HIL: ", "") if is_hil else answer
+                final_payload = {
+                    "event": "final",
+                    "answer": clean_answer,
+                    "citations": [cit if isinstance(cit, dict) else cit.model_dump() for cit in citations],
+                    "recap": recap,
+                    "suggested_followups": suggested_followups,
+                    "conversation_id": conversation_id,
+                    "is_hil": is_hil
+                }
+                await queue.put({"type": "final_payload", "data": final_payload})
+                
+            except Exception as e:
+                logger.error(f"Erro na execução do RAG agêntico em background: {e}", exc_info=True)
+                await queue.put({"type": "error", "error": str(e)})
+            finally:
+                await queue.put({"type": "done"})
+
+        # Start the background task
+        bg_task = asyncio.create_task(run_graph_and_save())
         last_emitted_node = None
 
         try:
-            async for event in compiled_graph.astream_events(
-                initial_state,
-                config=config,
-                version="v2"
-            ):
-                event_type = event.get("event")
-                node_name = event.get("metadata", {}).get("langgraph_node")
-
-                # Transições de nós (Status) em tempo real
-                if event_type == "on_chain_start" and node_name in STATUS_MESSAGES and node_name != last_emitted_node:
-                    last_emitted_node = node_name
+            while True:
+                msg = await queue.get()
+                if msg["type"] == "done":
+                    break
+                elif msg["type"] == "error":
                     yield {
-                        "event": "status",
-                        "agent": node_name,
-                        "message": STATUS_MESSAGES[node_name]
+                        "event": "error",
+                        "message": f"Erro interno no processamento: {msg['error']}"
                     }
+                    break
+                elif msg["type"] == "final_payload":
+                    yield msg["data"]
+                elif msg["type"] == "event":
+                    event = msg["data"]
+                    event_type = event.get("event")
+                    node_name = event.get("metadata", {}).get("langgraph_node")
 
-                # Streaming de tokens do Writer via evento customizado
-                elif event_type == "on_custom_event" and event.get("name") == "writer_token":
-                    text = event.get("data", {}).get("text")
-                    if text:
+                    if event_type == "on_chain_start" and node_name in STATUS_MESSAGES and node_name != last_emitted_node:
+                        last_emitted_node = node_name
                         yield {
-                            "event": "token",
-                            "text": text
+                            "event": "status",
+                            "agent": node_name,
+                            "message": STATUS_MESSAGES[node_name]
                         }
 
-                # Coletar estado final ao término de cada nó
-                elif event_type == "on_chain_end" and event.get("name") == "LangGraph":
-                    final_state = event.get("data", {}).get("output", {})
-
-            # 6. Processamento pós-grafo (Persistir Resposta e Citações)
-            answer = final_state.get("answer", "")
-            citations = final_state.get("citations") or []
-            recap = final_state.get("recap", "")
-            next_step = final_state.get("next_step")
-
-            # Se houver aviso de câmara restrita, anexar ao final da resposta
-            chamber_warning = final_state.get("chamber_warning")
-            if chamber_warning and answer:
-                answer = f"{answer}\n\n{chamber_warning}"
-
-            # Tratar caso de Human-in-the-Loop
-            is_hil = next_step == "ask_user" or answer.startswith("PAUSE_HIL:")
-            
-            suggested_followups = final_state.get("suggested_followups") or []
-
-            # Se não for HIL, persistir e descontar cota
-            if not is_hil:
-                # Salvar mensagem gerada pelo RAG no Supabase com o resumo (recap) formatado em blockquote
-                db_content = answer
-                if recap:
-                    db_content = f"{answer}\n\n> {recap}"
-                msg_id = await self.database.save_message(
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=db_content,
-                    route=final_state.get("next_step", "RAG"),
-                    token_count=len(db_content.split()),
-                    suggested_followups=suggested_followups
-                )
-                
-                # Salvar citações
-                if citations:
-                    await self.database.save_citations(msg_id, citations)
-                
-                # Incrementar contador de perguntas do usuário
-                await self.database.increment_user_question_count(user_id)
-            else:
-                # HIL: Salva como mensagem do assistente mas sinaliza que é pergunta clarificadora
-                clean_question = answer.replace("PAUSE_HIL: ", "")
-                await self.database.save_message(
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=clean_question,
-                    route="ASK_USER"
-                )
-
-            suggested_followups = final_state.get("suggested_followups") or []
-
-            # Emitir evento final completo (garantindo que o prefixo interno PAUSE_HIL seja removido)
-            clean_answer = answer.replace("PAUSE_HIL: ", "") if is_hil else answer
-            yield {
-                "event": "final",
-                "answer": clean_answer,
-                "citations": [cit if isinstance(cit, dict) else cit.model_dump() for cit in citations],
-                "recap": recap,
-                "suggested_followups": suggested_followups,
-                "conversation_id": conversation_id,
-                "is_hil": is_hil
-            }
-
+                    elif event_type == "on_custom_event" and event.get("name") == "writer_token":
+                        text = event.get("data", {}).get("text")
+                        if text:
+                            yield {
+                                "event": "token",
+                                "text": text
+                            }
+        except asyncio.CancelledError:
+            logger.info("Cliente desconectou durante o streaming. A tarefa de background continuará executando.")
+            # Do NOT cancel bg_task so it finishes saving to DB!
+            return
         except Exception as e:
-            logger.error(f"Erro na execução do RAG agêntico: {e}", exc_info=True)
+            logger.error(f"Erro no streaming loop: {e}", exc_info=True)
             yield {
                 "event": "error",
-                "message": f"Erro interno no processamento: {str(e)}"
+                "message": f"Erro interno no envio: {str(e)}"
             }
