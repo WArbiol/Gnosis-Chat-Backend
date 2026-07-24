@@ -391,3 +391,46 @@ async def test_rag_page_filtering_flow():
     assert vector_store.last_search_args.get("page_start") == 10
     assert vector_store.last_search_args.get("page_end") == 20
 
+
+@pytest.mark.asyncio
+async def test_ask_rag_disconnect_preserves_background_task():
+    """Garante que a desconexão do cliente HTTP (CancelledError no gerador) não aborta o salvamento em background."""
+    import asyncio
+    llm = MockLLM()
+    vector_store = MockVectorStore()
+    reranker = MockReranker()
+    db = MockDatabase(
+        UserProfile(id="123", email="user@test.com", plan=PlanEnum.BASIC, chamber_level=1, question_count=0)
+    )
+
+    llm.json_responses["pergunta-disconnect"] = OrchestratorDecision(
+        thought="mock disconnect",
+        next_step="researcher",
+        sub_queries=["o que é o Ego?"]
+    )
+    llm.text_responses["Ego"] = "O Ego deve ser dissolvido."
+
+    use_case = AskRagUseCase(llm, vector_store, reranker, db)
+
+    gen = use_case.execute(
+        query="pergunta-disconnect",
+        user_id="123",
+        ui_filters=None,
+        user_profile=db.profile,
+        conversation_id="conv-disconnect"
+    )
+
+    # 1. Consumir apenas o primeiro evento
+    await anext(gen)
+
+    # 2. Simular cancelamento do gerador (cliente desconectou do streaming HTTP)
+    await gen.aclose()
+
+    # 3. Aguardar brevemente para que o background task termine de rodar
+    await asyncio.sleep(0.5)
+
+    # 4. Verificar se a mensagem do assistente foi salva no banco apesar da desconexão
+    assistant_msgs = [m for m in db.messages_saved if m["role"] == "assistant"]
+    assert len(assistant_msgs) == 1
+
+
