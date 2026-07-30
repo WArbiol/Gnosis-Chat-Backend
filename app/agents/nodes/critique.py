@@ -64,12 +64,12 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
     if counters:
         counters["critique_loops"] += 1
 
-    # Forçar encerramento do loop se o limite for atingido para evitar loop infinito
+    # Forçar encerramento do loop se o limite (1 retry) for atingido para evitar gasto excessivo
     final_verdict = verdict.verdict
     final_feedback = verdict.feedback
-    if counters and counters["critique_loops"] >= 6:
+    if counters and counters["critique_loops"] >= 1:
         final_verdict = "sufficient"
-        final_feedback = "Limite de tentativas de pesquisa atingido. Prosseguindo com as fontes atuais."
+        final_feedback = "Limite de 1 tentativa extra atingido. Prosseguindo com as fontes recuperadas."
 
     return {
         "critique_verdict": final_verdict,

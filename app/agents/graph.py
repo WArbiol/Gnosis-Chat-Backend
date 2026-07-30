@@ -67,18 +67,8 @@ def build_agentic_rag_graph():
         }
     )
 
-    # Do Writer flui direto ao Judge
-    builder.add_edge("writer", "judge")
-
-    # Do Judge decide se aprova ou volta ao orquestrador
-    builder.add_conditional_edges(
-        "judge",
-        route_from_judge,
-        {
-            "recap": "recap",
-            "orchestrator": "orchestrator"
-        }
-    )
+    # Do Writer flui direto ao Recap (bypassing Judge para economia de tokens)
+    builder.add_edge("writer", "recap")
 
     # Nós de saída finalizam a execução
     builder.add_edge("recap", END)

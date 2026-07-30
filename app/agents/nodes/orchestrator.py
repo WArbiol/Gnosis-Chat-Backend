@@ -170,19 +170,17 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
     if page_start is not None: metadata_filters["page_start"] = page_start
     if page_end is not None: metadata_filters["page_end"] = page_end
 
-    # 5. Aplicar limites de loops na rota de decisão
+    # 5. Aplicar limites de loops na rota de decisão (Máximo de 1 Retry: researcher_calls >= 2)
     next_step = decision.next_step
-    if next_step == "researcher" and counters["researcher_calls"] >= 7:
-        # Se exceder o limite de pesquisas, força rota para o Writer finalizar com o que tem
+    if next_step == "researcher" and counters["researcher_calls"] >= 2:
+        # Se exceder o limite de 1 retry (2 chamadas), força rota para o Writer finalizar com o que tem
         next_step = "writer"
     elif next_step == "ask_user" and counters["ask_user_calls"] >= 2:
         # Se exceder limite de esclarecimentos, tenta pesquisa direta
         next_step = "researcher"
 
-    # Se a decisão for fazer pesquisa, inicializar a sub-query se a lista vier vazia
-    sub_queries = decision.sub_queries
-    if next_step == "researcher" and not sub_queries:
-        sub_queries = [query]
+    # Limitar sub_queries a no máximo 1 consulta para evitar fan-out paralelo pesado
+    sub_queries = decision.sub_queries[:1] if decision.sub_queries else [query]
 
     # 5.5. Detectar se o usuário pediu por conteúdo da Segunda Câmara que lhe é restrito
     chamber_warning = None
