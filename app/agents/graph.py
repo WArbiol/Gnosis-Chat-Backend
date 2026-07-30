@@ -67,11 +67,8 @@ def build_agentic_rag_graph():
         }
     )
 
-    # Do Writer flui direto ao Recap (bypassing Judge para economia de tokens)
-    builder.add_edge("writer", "recap")
-
-    # Nós de saída finalizam a execução
-    builder.add_edge("recap", END)
+    # Writer finaliza a execução (sem nó separado de Recap)
+    builder.add_edge("writer", END)
     builder.add_edge("direct_response", END)
     builder.add_edge("ask_user", END)
 

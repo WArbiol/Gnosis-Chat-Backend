@@ -50,7 +50,8 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         "3. Não mencione números de fontes internas (ex: não escreva '[Fonte #1]'). Use apenas o nome do livro e página.\n"
         "4. Mantenha um tom respeitoso, solene e didático.\n"
         "5. IMPORTANTE: Distinga rigorosamente o título das obras de referência (metadados dos livros) dos conceitos, seres ou entidades teológicas descritos no conteúdo. Nunca confunda ou associe o nome/título de um livro (ex: 'Pistis Sophia Desvelada', 'O Divino Daimon', 'O Livro Amarelo') como se fosse o nome de uma divindade, processo ou entidade descrita nas fontes, a menos que o texto explicitamente fundamente essa relação. Trate os metadados bibliográficos estritamente como referências de catalogação.\n"
-        "6. IDIOMA E GRAFIA: Se a pergunta for em português, responda obrigatoriamente em português do Brasil (pt-BR). Use grafias brasileiras legítimas (ex: escreva 'exata' e não 'exacta', 'fato' e não 'facto'). IMPORTANTE: Use sempre a palavra 'Gnosis' (com 'is' no final) em vez de 'Gnose'."
+        "6. IDIOMA E GRAFIA: Se a pergunta for em português, responda obrigatoriamente em português do Brasil (pt-BR). Use grafias brasileiras legítimas (ex: escreva 'exata' e não 'exacta', 'fato' e não 'facto'). IMPORTANTE: Use sempre a palavra 'Gnosis' (com 'is' no final) em vez de 'Gnose'.\n"
+        "7. PERGUNTAS SUGERIDAS: No final absoluto da sua resposta, adicione uma linha contendo exatamente '---SUGESTOES---' e logo abaixo liste de 2 a 3 perguntas de continuação curtas e instigantes em pt-BR (uma por linha, iniciando com '- ')."
     )
 
     prompt = (
@@ -73,10 +74,20 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         chunks_text.append(token)
         await adispatch_custom_event("writer_token", {"text": token})
         
-    answer = "".join(chunks_text)
+    full_text = "".join(chunks_text)
+    answer = full_text
+    suggested_followups = []
+
+    if "---SUGESTOES---" in full_text:
+        parts = full_text.split("---SUGESTOES---")
+        answer = parts[0].strip()
+        sug_block = parts[1].strip()
+        for line in sug_block.split("\n"):
+            clean_line = line.strip().lstrip("-* ").strip()
+            if clean_line:
+                suggested_followups.append(clean_line)
 
     # 3. Mapear e retornar apenas as citações que foram de fato relevantes/fornecidas
-    # Filtramos duplicados nas citações
     seen = set()
     final_citations = []
     for cit in available_citations:
@@ -89,5 +100,6 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
 
     return {
         "answer": answer,
-        "citations": final_citations
+        "citations": final_citations,
+        "suggested_followups": suggested_followups
     }
