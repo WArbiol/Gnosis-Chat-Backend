@@ -59,11 +59,11 @@ async def process_single_query(
             "relevance_scores": []
         }
 
-    # 4. Cross-Encoder Re-Ranking (Vertex AI) -> seleciona top 8
+    # 4. Cross-Encoder Re-Ranking (Vertex AI) -> seleciona top 10
     ranked_chunks = await reranker.rerank(
         query=sub_query,
         documents=raw_chunks,
-        top_n=8
+        top_n=10
     )
 
     # Mapear chunks reordenados

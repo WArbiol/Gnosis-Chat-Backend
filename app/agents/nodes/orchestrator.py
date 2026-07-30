@@ -179,8 +179,8 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         # Se exceder limite de esclarecimentos, tenta pesquisa direta
         next_step = "researcher"
 
-    # Limitar sub_queries a no máximo 1 consulta para evitar fan-out paralelo pesado
-    sub_queries = decision.sub_queries[:1] if decision.sub_queries else [query]
+    # Preservar a decomposição dinâmica em sub-queries (até 3) para cobrir perguntas complexas
+    sub_queries = decision.sub_queries if decision.sub_queries else [query]
 
     # 5.5. Detectar se o usuário pediu por conteúdo da Segunda Câmara que lhe é restrito
     chamber_warning = None
