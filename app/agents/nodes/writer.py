@@ -51,7 +51,7 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         "4. Mantenha um tom respeitoso, solene e didático.\n"
         "5. IMPORTANTE: Distinga rigorosamente o título das obras de referência (metadados dos livros) dos conceitos, seres ou entidades teológicas descritos no conteúdo. Nunca confunda ou associe o nome/título de um livro (ex: 'Pistis Sophia Desvelada', 'O Divino Daimon', 'O Livro Amarelo') como se fosse o nome de uma divindade, processo ou entidade descrita nas fontes, a menos que o texto explicitamente fundamente essa relação. Trate os metadados bibliográficos estritamente como referências de catalogação.\n"
         "6. IDIOMA E GRAFIA: Se a pergunta for em português, responda obrigatoriamente em português do Brasil (pt-BR). Use grafias brasileiras legítimas (ex: escreva 'exata' e não 'exacta', 'fato' e não 'facto'). IMPORTANTE: Use sempre a palavra 'Gnosis' (com 'is' no final) em vez de 'Gnose'.\n"
-        "7. PERGUNTAS SUGERIDAS: No final absoluto da sua resposta, adicione uma linha contendo exatamente '---SUGESTOES---' e logo abaixo liste de 2 a 3 perguntas de continuação curtas e instigantes em pt-BR (uma por linha, iniciando com '- ')."
+        "7. SÍNTESE E SUGESTÕES: No final absoluto da sua resposta, adicione uma linha contendo exatamente '---RECAP---' seguida de 2 a 3 frases sintetizando a jornada de aprendizado da resposta. Em seguida, adicione uma linha contendo exatamente '---SUGESTOES---' e abaixo liste de 2 a 3 perguntas de continuação curtas e instigantes em pt-BR (uma por linha, iniciando com '- ')."
     )
 
     prompt = (
@@ -76,9 +76,23 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
         
     full_text = "".join(chunks_text)
     answer = full_text
+    recap = ""
     suggested_followups = []
 
-    if "---SUGESTOES---" in full_text:
+    if "---RECAP---" in full_text:
+        parts = full_text.split("---RECAP---")
+        answer = parts[0].strip()
+        remainder = parts[1]
+        if "---SUGESTOES---" in remainder:
+            recap_part, sug_part = remainder.split("---SUGESTOES---")
+            recap = recap_part.strip()
+            for line in sug_part.strip().split("\n"):
+                clean_line = line.strip().lstrip("-* ").strip()
+                if clean_line:
+                    suggested_followups.append(clean_line)
+        else:
+            recap = remainder.strip()
+    elif "---SUGESTOES---" in full_text:
         parts = full_text.split("---SUGESTOES---")
         answer = parts[0].strip()
         sug_block = parts[1].strip()
@@ -101,5 +115,6 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
     return {
         "answer": answer,
         "citations": final_citations,
+        "recap": recap,
         "suggested_followups": suggested_followups
     }
