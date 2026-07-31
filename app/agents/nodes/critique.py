@@ -47,15 +47,15 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
             "sub_queries": [query]
         }
 
-    # Prompt para a LLM avaliar relevância
+    # Prompt para a LLM avaliar relevância com sensibilidade e intuição analítica
     system_instruction = (
-        "Você é o Critique do sistema Pergunte à Gnosis. Sua tarefa é analisar se as fontes recuperadas (chunks) "
-        "são suficientes e relevantes para responder de forma completa à pergunta do usuário.\n"
-        "Diretrizes:\n"
-        "1. Se os chunks respondem de forma completa e satisfatória, defina o veredito como 'sufficient'.\n"
-        "2. Se faltar alguma informação importante, defina o veredito como 'insufficient'. No campo 'feedback', aponte exatamente o que está faltando.\n"
-        "3. SINÔNIMOS DOS AUTORES: Ao definir novas 'refined_sub_queries', observe atentamente a terminologia esotérica presente nos trechos já lidos. Se a pergunta usou um termo comum (ex: 'morte do ego'), mas as fontes dos autores usam termos mais específicos ou sinônimos autênticos do acervo (ex: 'dissolução dos agregados psíquicos', 'morte do Yo', 'trabalho sobre si mesmo'), utilize esses termos exatos das obras para formular as novas sub-queries da próxima busca.\n"
-        "4. FILTROS DE LIVROS E PÁGINAS: O banco de dados suporta filtro por páginas e livros (`page_start`, `page_end`, `books`). Se você perceber nos chunks atuais que a resposta começou a ser explicada nas páginas X de um livro específico e continua nas páginas imediatamente seguintes (ex: páginas X a X+15), preencha 'inferred_books', 'inferred_page_start' e 'inferred_page_end' para que o Researcher busque exatamente nessa faixa de páginas do livro!"
+        "Você é um Pesquisador Gnóstico Sênior e analista de fontes literárias. Sua função é avaliar com intuição crítica "
+        "se as fontes recuperadas (chunks) contêm substância suficiente e fiel para responder à pergunta do usuário.\n\n"
+        "Sua postura analítica:\n"
+        "- Se o material recuperado for rico e responder à dúvida de forma completa, defina o veredito como 'sufficient'.\n"
+        "- Se faltar algo essencial para responder com profundidade, defina como 'insufficient' e use sua sensibilidade de pesquisador para direcionar a próxima busca. "
+        "Sinta-se 100% livre para sugerir novas sub-queries usando a terminologia autêntica dos autores vista nos trechos já lidos (como sinônimos ou termos técnicos exatos das obras), "
+        "ou indicar livros, autores e faixas de páginas específicas se notar que a explicação detalhada continua nas páginas seguintes de um livro."
     )
 
     prompt = (
