@@ -435,8 +435,8 @@ async def test_ask_rag_disconnect_preserves_background_task():
 
 
 @pytest.mark.asyncio
-async def test_critique_allows_exactly_one_retry_before_forcing_sufficient():
-    """Garante que o nó Critique permite exatamente 1 tentativa de busca extra (retry) quando os resultados são insuficientes, e na 2ª tentativa força o prosseguimento."""
+async def test_critique_allows_up_to_two_retries_before_forcing_sufficient():
+    """Garante que o nó Critique permite até 2 tentativas extras (3 no total) quando os resultados são insuficientes, e na 3ª tentativa força o prosseguimento."""
     from app.agents.nodes.critique import critique_node
     from langchain_core.runnables import RunnableConfig
 
@@ -457,12 +457,10 @@ async def test_critique_allows_exactly_one_retry_before_forcing_sufficient():
     }
 
     res_turn1 = await critique_node(state_turn1, config)
-
-    # No turno 1, deve RESPEITAR o veredito "insufficient" da LLM para permitir a 1ª busca extra (retry)!
     assert res_turn1["critique_verdict"] == "insufficient"
     assert res_turn1["session_counters"]["critique_loops"] == 1
 
-    # --- Turno 2 (2ª tentativa / Retry): critique_loops = 1 ---
+    # --- Turno 2 (2ª Busca / 1º Retry): critique_loops = 1 ---
     state_turn2 = {
         "query": "pergunta-insuficiente",
         "research_results": [{"sub_query": "q2", "chunks": ["chunk 2"], "citations": [], "relevance_scores": [0.5]}],
@@ -470,11 +468,20 @@ async def test_critique_allows_exactly_one_retry_before_forcing_sufficient():
     }
 
     res_turn2 = await critique_node(state_turn2, config)
-
-    # No turno 2, deve FORÇAR "sufficient" para não exceder o limite rígido de 1 retry!
-    assert res_turn2["critique_verdict"] == "sufficient"
-    assert "Limite de 1 tentativa extra atingido" in res_turn2["critique_feedback"]
+    assert res_turn2["critique_verdict"] == "insufficient"
     assert res_turn2["session_counters"]["critique_loops"] == 2
+
+    # --- Turno 3 (3ª Busca / 2º Retry): critique_loops = 2 ---
+    state_turn3 = {
+        "query": "pergunta-insuficiente",
+        "research_results": [{"sub_query": "q3", "chunks": ["chunk 3"], "citations": [], "relevance_scores": [0.5]}],
+        "session_counters": res_turn2["session_counters"]
+    }
+
+    res_turn3 = await critique_node(state_turn3, config)
+    assert res_turn3["critique_verdict"] == "sufficient"
+    assert "Limite de 2 tentativas extras (3 buscas no total) atingido" in res_turn3["critique_feedback"]
+    assert res_turn3["session_counters"]["critique_loops"] == 3
 
 
 
