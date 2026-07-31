@@ -68,18 +68,24 @@ class MockLLM(LLMGateway):
                     return OrchestratorDecision(thought="mock", next_step="writer")
                 return OrchestratorDecision(thought="mock", next_step="researcher", sub_queries=["o que é a Essência?"])
 
-            # Match inteligente baseado nas chaves configuradas
+            # Match inteligente baseado nas chaves configuradas do tipo OrchestratorDecision
             for key, val in sorted(self.json_responses.items(), key=lambda x: len(x[0]), reverse=True):
-                if key.lower() in prompt.lower():
+                if isinstance(val, OrchestratorDecision) and key.lower() in prompt.lower():
                     return val
             return OrchestratorDecision(thought="mock", next_step="direct_response", direct_answer="Olá gnóstico!")
             
         # Se for veredito do critique
         if response_schema == CritiqueVerdict:
+            for key, val in sorted(self.json_responses.items(), key=lambda x: len(x[0]), reverse=True):
+                if isinstance(val, CritiqueVerdict) and key.lower() in prompt.lower():
+                    return val
             return CritiqueVerdict(verdict="sufficient", feedback="Tudo ok.")
             
         # Se for veredito do judge
         if response_schema == JudgeVerdict:
+            for key, val in sorted(self.json_responses.items(), key=lambda x: len(x[0]), reverse=True):
+                if isinstance(val, JudgeVerdict) and key.lower() in prompt.lower():
+                    return val
             return JudgeVerdict(verdict="approved", feedback="Excelente resposta.")
             
         return {}

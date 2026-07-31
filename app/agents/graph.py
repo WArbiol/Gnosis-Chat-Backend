@@ -14,12 +14,12 @@ def route_from_orchestrator(state: GraphState) -> Literal["researcher", "writer"
     """Determina a próxima rota a partir da decisão do orquestrador."""
     return state.get("next_step", "direct_response")
 
-def route_from_critique(state: GraphState) -> Literal["writer", "orchestrator"]:
-    """Se a pesquisa for suficiente (ou limite atingido), vai direto ao Writer. Se for insuficiente, volta ao Orquestrador para a busca extra (retry)."""
+def route_from_critique(state: GraphState) -> Literal["writer", "researcher"]:
+    """Se a pesquisa for suficiente (ou limite atingido), vai ao Writer. Se for insuficiente, vai DIRETO ao Researcher com as novas sub-queries do Critique!"""
     verdict = state.get("critique_verdict", "sufficient")
     if verdict == "sufficient":
         return "writer"
-    return "orchestrator"
+    return "researcher"
 
 def route_from_judge(state: GraphState) -> Literal["recap", "orchestrator"]:
     """Roteia para recap se aprovado pelo Judge, ou volta ao orquestrador para feedback se rejeitado."""
@@ -61,13 +61,13 @@ def build_agentic_rag_graph():
     # Do Researcher flui direto ao Critique
     builder.add_edge("researcher", "critique")
 
-    # Do Critique vai direto ao Writer se 'sufficient', ou volta ao Orchestrator se 'insufficient'
+    # Do Critique vai direto ao Writer se 'sufficient', ou direto ao Researcher se 'insufficient' (sem passar pelo Orchestrator!)
     builder.add_conditional_edges(
         "critique",
         route_from_critique,
         {
             "writer": "writer",
-            "orchestrator": "orchestrator"
+            "researcher": "researcher"
         }
     )
 

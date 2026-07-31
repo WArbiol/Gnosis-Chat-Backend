@@ -34,17 +34,33 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
     research_results = state.get("research_results") or []
     counters = state.get("session_counters")
 
+    # Incrementar contador de loops de critique (garantir inicialização se vier None)
+    counters: SessionCounters = state.get("session_counters") or {
+        "researcher_calls": 0,
+        "critique_loops": 0,
+        "judge_loops": 0,
+        "ask_user_calls": 0
+    }
+    counters["critique_loops"] += 1
+
     # Agregar chunks para análise
     all_chunks = []
     for res in research_results:
         all_chunks.extend(res.get("chunks", []))
 
-    # Se não retornou nenhum chunk, marcar direto como insuficiente
+    # Se não retornou nenhum chunk, marcar como insuficiente respeitando o limite de retries
     if not all_chunks:
+        final_verdict = "insufficient"
+        final_feedback = "Nenhum resultado foi encontrado na busca vetorial no Qdrant."
+        if counters["critique_loops"] > 2:
+            final_verdict = "sufficient"
+            final_feedback = "Limite de 2 tentativas extras (3 buscas no total) atingido."
+
         return {
-            "critique_verdict": "insufficient",
-            "critique_feedback": "Nenhum resultado foi encontrado na busca vetorial no Qdrant.",
-            "sub_queries": [query]
+            "critique_verdict": final_verdict,
+            "critique_feedback": final_feedback,
+            "sub_queries": [query],
+            "session_counters": counters
         }
 
     # Prompt para a LLM avaliar relevância com sensibilidade e intuição analítica
@@ -73,14 +89,10 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
         use_premium_model=False # Lite
     )
 
-    # Incrementar contador de loops de critique
-    if counters:
-        counters["critique_loops"] += 1
-
     # Forçar encerramento do loop se já tivermos feito a 1ª tentativa + 2 retries (critique_loops > 2, total 3 buscas)
     final_verdict = verdict.verdict
     final_feedback = verdict.feedback
-    if counters and counters["critique_loops"] > 2:
+    if counters["critique_loops"] > 2:
         final_verdict = "sufficient"
         final_feedback = "Limite de 2 tentativas extras (3 buscas no total) atingido. Prosseguindo com as fontes recuperadas."
 
