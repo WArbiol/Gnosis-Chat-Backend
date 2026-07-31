@@ -27,7 +27,8 @@ async def process_single_query(
     llm: LLMGateway,
     vector_store: VectorStoreGateway,
     reranker: RerankerGateway,
-    skip_transform: bool = False
+    skip_transform: bool = False,
+    top_n: int = 10
 ) -> ResearchResult:
     """Processa uma única sub-query: transform, embed, retrieval e re-rank."""
     # 1. Query Transformation
@@ -63,7 +64,7 @@ async def process_single_query(
     ranked_chunks = await reranker.rerank(
         query=sub_query,
         documents=raw_chunks,
-        top_n=10
+        top_n=top_n
     )
 
     # Mapear chunks reordenados
@@ -112,9 +113,17 @@ async def researcher_node(state: GraphState, config: RunnableConfig) -> dict[str
     critique_loops = counters.get("critique_loops", 0) if counters else 0
     skip_transform = (critique_loops == 0)
 
+    # Busca Adaptativa: Aumenta a quantidade de chunks re-ranqueados em buscas de refino
+    if critique_loops == 0:
+        adaptive_top_n = 10
+    elif critique_loops == 1:
+        adaptive_top_n = 15
+    else:
+        adaptive_top_n = 20
+
     # 1. Executar todas as pesquisas de forma assíncrona concorrente (máx. 6)
     tasks = [
-        process_single_query(sq, metadata_filters, llm, vector_store, reranker, skip_transform=skip_transform)
+        process_single_query(sq, metadata_filters, llm, vector_store, reranker, skip_transform=skip_transform, top_n=adaptive_top_n)
         for sq in sub_queries[:6] # Limite de segurança de 6 sub-queries paralelas
     ]
     

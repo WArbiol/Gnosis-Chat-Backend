@@ -11,6 +11,9 @@ class CritiqueVerdict(BaseModel):
     feedback: str = Field(
         ..., description="Detalhamento sobre o que falta ou por que os chunks atuais são insuficientes."
     )
+    refined_sub_queries: list[str] = Field(
+        default=[], description="Se o veredito for 'insufficient', gere de 1 a 2 novas sub-queries ultra-focadas no que ficou faltando. IMPORTANTE: Use sinônimos técnicos e termos esotéricos legítimos encontrados nas próprias fontes lidas nos chunks atuais (ex: se o usuário perguntou sobre 'Morte do Ego' e as fontes citam 'Dissolução do Yo' ou 'Agregados Psíquicos', inclua esses termos exatos das obras nas novas sub-queries)."
+    )
 
 from langchain_core.runnables import RunnableConfig
 
@@ -31,7 +34,8 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
     if not all_chunks:
         return {
             "critique_verdict": "insufficient",
-            "critique_feedback": "Nenhum resultado foi encontrado na busca vetorial no Qdrant."
+            "critique_feedback": "Nenhum resultado foi encontrado na busca vetorial no Qdrant.",
+            "sub_queries": [query]
         }
 
     # Prompt para a LLM avaliar relevância
@@ -40,16 +44,15 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
         "são suficientes e relevantes para responder de forma completa à pergunta do usuário.\n"
         "Diretrizes:\n"
         "1. Se os chunks respondem de forma completa e satisfatória, defina o veredito como 'sufficient'.\n"
-        "2. Se faltar alguma informação importante, defina o veredito como 'insufficient'. Ao invés de apenas classificar de forma genérica, você deve retornar de forma detalhada e construtiva no campo 'feedback' o que já foi encontrado de importante nas fontes atuais E apontar exatamente o que ainda está faltando para responder à pergunta.\n"
-        "3. Se você souber ou suspeitar de pistas adicionais que ajudem no refino (como livros, autores, capítulos, termos de busca mais específicos ou até intervalos de páginas específicas), cite-os no feedback. Se não houver pistas concretas, descreva apenas conceitualmente o que falta. Lembre ao Orquestrador que ele pode aplicar qualquer um desses filtros, inclusive restringir a busca a uma página ou intervalo de páginas se você sugerir (pois o banco possui o campo 'page').\n"
-        "4. Se os textos recuperados revelarem que o termo pesquisado possui múltiplos significados ou aplicações distintas nas obras, mencione essa diversidade no feedback para que o Orquestrador possa considerar se é o caso de solicitar esclarecimento ao usuário."
+        "2. Se faltar alguma informação importante, defina o veredito como 'insufficient'. No campo 'feedback', aponte exatamente o que está faltando.\n"
+        "3. SINÔNIMOS DOS AUTORES: Ao definir novas 'refined_sub_queries', observe atentamente a terminologia esotérica presente nos trechos já lidos. Se a pergunta usou um termo comum (ex: 'morte do ego'), mas as fontes dos autores usam termos mais específicos ou sinônimos autênticos do acervo (ex: 'dissolução dos agregados psíquicos', 'morte do Yo', 'trabalho sobre si mesmo'), utilize esses termos exatos das obras para formular as novas sub-queries da próxima busca."
     )
 
     prompt = (
         f"Pergunta do Usuário: {query}\n\n"
         f"Textos Recuperados das Obras:\n"
         f"{chr(10).join(f'- {c}' for c in all_chunks[:15])}\n\n"
-        "Avalie a qualidade das fontes em relação à pergunta do usuário."
+        "Avalie a qualidade das fontes em relação à pergunta do usuário e gere o veredito."
     )
 
     verdict: CritiqueVerdict = await llm.generate_json(
@@ -71,8 +74,14 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
         final_verdict = "sufficient"
         final_feedback = "Limite de 2 tentativas extras (3 buscas no total) atingido. Prosseguindo com as fontes recuperadas."
 
-    return {
+    res_dict = {
         "critique_verdict": final_verdict,
         "critique_feedback": final_feedback,
         "session_counters": counters
     }
+
+    # Se for insuficiente e o Critique gerou novas sub-queries, atualizamos o state para o Researcher
+    if final_verdict == "insufficient" and verdict.refined_sub_queries:
+        res_dict["sub_queries"] = verdict.refined_sub_queries
+
+    return res_dict
