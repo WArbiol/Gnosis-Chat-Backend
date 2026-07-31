@@ -14,6 +14,15 @@ class CritiqueVerdict(BaseModel):
     refined_sub_queries: list[str] = Field(
         default=[], description="Se o veredito for 'insufficient', gere de 1 a 2 novas sub-queries ultra-focadas no que ficou faltando. IMPORTANTE: Use sinônimos técnicos e termos esotéricos legítimos encontrados nas próprias fontes lidas nos chunks atuais (ex: se o usuário perguntou sobre 'Morte do Ego' e as fontes citam 'Dissolução do Yo' ou 'Agregados Psíquicos', inclua esses termos exatos das obras nas novas sub-queries)."
     )
+    inferred_books: list[str] | None = Field(
+        default=None, description="Se você identificou nos chunks atuais um livro específico onde a resposta continua ou está detalhada, informe o nome do livro."
+    )
+    inferred_page_start: int | None = Field(
+        default=None, description="Se você identificou que a explicação continua nas páginas seguintes de um livro lido nos chunks, informe a página inicial para restringir o RAG."
+    )
+    inferred_page_end: int | None = Field(
+        default=None, description="Página final para restringir a busca vetorial à faixa de páginas de interesse."
+    )
 
 from langchain_core.runnables import RunnableConfig
 
@@ -45,7 +54,8 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
         "Diretrizes:\n"
         "1. Se os chunks respondem de forma completa e satisfatória, defina o veredito como 'sufficient'.\n"
         "2. Se faltar alguma informação importante, defina o veredito como 'insufficient'. No campo 'feedback', aponte exatamente o que está faltando.\n"
-        "3. SINÔNIMOS DOS AUTORES: Ao definir novas 'refined_sub_queries', observe atentamente a terminologia esotérica presente nos trechos já lidos. Se a pergunta usou um termo comum (ex: 'morte do ego'), mas as fontes dos autores usam termos mais específicos ou sinônimos autênticos do acervo (ex: 'dissolução dos agregados psíquicos', 'morte do Yo', 'trabalho sobre si mesmo'), utilize esses termos exatos das obras para formular as novas sub-queries da próxima busca."
+        "3. SINÔNIMOS DOS AUTORES: Ao definir novas 'refined_sub_queries', observe atentamente a terminologia esotérica presente nos trechos já lidos. Se a pergunta usou um termo comum (ex: 'morte do ego'), mas as fontes dos autores usam termos mais específicos ou sinônimos autênticos do acervo (ex: 'dissolução dos agregados psíquicos', 'morte do Yo', 'trabalho sobre si mesmo'), utilize esses termos exatos das obras para formular as novas sub-queries da próxima busca.\n"
+        "4. FILTROS DE LIVROS E PÁGINAS: O banco de dados suporta filtro por páginas e livros (`page_start`, `page_end`, `books`). Se você perceber nos chunks atuais que a resposta começou a ser explicada nas páginas X de um livro específico e continua nas páginas imediatamente seguintes (ex: páginas X a X+15), preencha 'inferred_books', 'inferred_page_start' e 'inferred_page_end' para que o Researcher busque exatamente nessa faixa de páginas do livro!"
     )
 
     prompt = (
@@ -80,8 +90,19 @@ async def critique_node(state: GraphState, config: RunnableConfig) -> dict[str, 
         "session_counters": counters
     }
 
-    # Se for insuficiente e o Critique gerou novas sub-queries, atualizamos o state para o Researcher
-    if final_verdict == "insufficient" and verdict.refined_sub_queries:
-        res_dict["sub_queries"] = verdict.refined_sub_queries
+    # Se for insuficiente e o Critique gerou novas sub-queries ou filtros de livro/páginas
+    if final_verdict == "insufficient":
+        if verdict.refined_sub_queries:
+            res_dict["sub_queries"] = verdict.refined_sub_queries
+
+        curr_filters = dict(state.get("metadata_filters") or {})
+        if verdict.inferred_books:
+            curr_filters["books"] = list(set((curr_filters.get("books") or []) + verdict.inferred_books))
+        if verdict.inferred_page_start is not None:
+            curr_filters["page_start"] = verdict.inferred_page_start
+        if verdict.inferred_page_end is not None:
+            curr_filters["page_end"] = verdict.inferred_page_end
+
+        res_dict["metadata_filters"] = curr_filters
 
     return res_dict
