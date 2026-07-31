@@ -10,7 +10,7 @@ from app.agents.nodes.recap import recap_node
 from app.agents.nodes.direct_response import direct_response_node
 from app.agents.nodes.ask_user import ask_user_node
 
-def route_from_orchestrator(state: GraphState) -> Literal["researcher", "writer", "direct_response", "ask_user"]:
+def route_from_orchestrator(state: GraphState) -> Literal["researcher", "direct_response", "ask_user"]:
     """Determina a próxima rota a partir da decisão do orquestrador."""
     return state.get("next_step", "direct_response")
 
@@ -52,7 +52,6 @@ def build_agentic_rag_graph():
         route_from_orchestrator,
         {
             "researcher": "researcher",
-            "writer": "writer",
             "direct_response": "direct_response",
             "ask_user": "ask_user"
         }

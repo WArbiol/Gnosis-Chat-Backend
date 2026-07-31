@@ -10,7 +10,7 @@ class OrchestratorDecision(BaseModel):
     thought: str = Field(
         ..., description="Análise lógica detalhada (Chain-of-Thought) passo a passo. Avalie se a pergunta atual é uma continuação do histórico recente ou um novo tópico, identifique os termos-chave esotéricos, mapeie os possíveis livros/autores do acervo e planeje a melhor rota e sub-queries antes de definir os demais campos."
     )
-    next_step: Literal["researcher", "writer", "direct_response", "ask_user"] = Field(
+    next_step: Literal["researcher", "direct_response", "ask_user"] = Field(
         ..., description="Decide a rota. Escolha 'direct_response' para saudações, despedidas, conversas informais (chit-chat), perguntas gerais do mundo real (ex: hora, clima), sobre o assistente/aplicativo ou quando o usuário comandar explicitamente para não fazer pesquisa. Escolha 'ask_user' se a pergunta for vaga e indefinida. Escolha 'researcher' como a rota padrão e principal para qualquer pergunta sobre conceitos, estudos, reflexões ou ensinamentos contidos nas obras."
     )
     sub_queries: list[str] = Field(
@@ -54,14 +54,6 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "judge_loops": 0,
         "ask_user_calls": 0
     }
-
-    # Se o Critique já avaliou e marcou as fontes como suficientes, prosseguir diretamente para o Writer
-    critique_verdict = state.get("critique_verdict")
-    if critique_verdict == "sufficient":
-        return {
-            "next_step": "writer",
-            "session_counters": counters
-        }
 
     # Se for uma retoma de Human-in-the-Loop, ler a resposta do usuário
     user_clarification = state.get("user_clarification")
@@ -170,12 +162,9 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
     if page_start is not None: metadata_filters["page_start"] = page_start
     if page_end is not None: metadata_filters["page_end"] = page_end
 
-    # 5. Aplicar limites de loops na rota de decisão (Máximo de 3 buscas: researcher_calls >= 3)
+    # 5. Aplicar limites de loops na rota de decisão
     next_step = decision.next_step
-    if next_step == "researcher" and counters["researcher_calls"] >= 3:
-        # Se exceder o limite de 3 chamadas, força rota para o Writer finalizar com o que tem
-        next_step = "writer"
-    elif next_step == "ask_user" and counters["ask_user_calls"] >= 2:
+    if next_step == "ask_user" and counters["ask_user_calls"] >= 2:
         # Se exceder limite de esclarecimentos, tenta pesquisa direta
         next_step = "researcher"
 
