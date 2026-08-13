@@ -11,6 +11,59 @@ async def test_verify_second_chamber_unauthenticated(client: AsyncClient):
     assert response.status_code == 401
 
 @pytest.mark.asyncio
+async def test_invalid_jwt_token_returns_401(client: AsyncClient):
+    response = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": "Bearer invalid.token.string"}
+    )
+    assert response.status_code == 401
+
+@pytest.mark.asyncio
+async def test_valid_jwt_token_decodes_correctly(client: AsyncClient):
+    import jwt
+    from app.core.config import settings
+
+    secret = "test-jwt-secret-key-12345678901234567890"
+    original_secret = settings.supabase_jwt_secret
+    original_env = settings.app_env
+    
+    settings.supabase_jwt_secret = secret
+    settings.app_env = "production"
+    
+    user_uuid = "11111111-2222-3333-4444-555555555555"
+    user_email = "jwt_test@gnosis.chat"
+    
+    try:
+        payload = {
+            "sub": user_uuid,
+            "email": user_email,
+            "aud": "authenticated",
+            "iss": f"{settings.supabase_url}/auth/v1" if settings.supabase_url else "http://test/auth/v1"
+        }
+        token = jwt.encode(payload, secret, algorithm="HS256")
+        
+        mock_profile = UserProfile(
+            id=user_uuid,
+            email=user_email,
+            plan=PlanEnum.FREE
+        )
+        
+        with patch("app.core.security._get_or_create_profile", return_value=mock_profile), \
+             patch("app.services.auth_service.get_user_profile", return_value=mock_profile):
+            
+            response = await client.get(
+                "/api/v1/auth/me",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["id"] == user_uuid
+            assert data["email"] == user_email
+    finally:
+        settings.supabase_jwt_secret = original_secret
+        settings.app_env = original_env
+
+@pytest.mark.asyncio
 async def test_verify_second_chamber_incorrect(client: AsyncClient, mock_user):
     # Override authentication dependency
     app.dependency_overrides[get_current_user] = lambda: mock_user
