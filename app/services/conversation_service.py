@@ -81,14 +81,18 @@ class ConversationService:
         if not conv_query:
             return None
         conv_result = conv_query[0]
+        user_id = conv_result.get("user_id")
         
         # Fetch initial messages (first page)
         msgs_result = self._execute(
             lambda c: c.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(50)
         ).data
         
+        from app.core.crypto import decrypt_message, encrypt_message
+
         messages = []
         for m in msgs_result:
+            m["content"] = decrypt_message(m.get("content", ""), user_id)
             m["citations"] = m.get("citations", [])
             m["suggested_followups"] = m.get("suggested_followups") or []
             messages.append(MessageResponse(**m))
@@ -112,6 +116,13 @@ class ConversationService:
         return ConversationResponse(**result)
 
     def list_messages(self, conversation_id: str, limit: int = 50, cursor: str | None = None) -> PaginatedResponse[MessageResponse]:
+        from app.core.crypto import decrypt_message
+
+        conv_query = self._execute(
+            lambda c: c.table("conversations").select("user_id").eq("id", conversation_id)
+        ).data
+        user_id = conv_query[0].get("user_id") if conv_query else None
+
         def _build(client: Client):
             q = client.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(limit + 1)
             if cursor:
@@ -126,6 +137,9 @@ class ConversationService:
             
         next_cursor = result[-1]["created_at"] if has_more and result else None
         
+        for m in result:
+            m["content"] = decrypt_message(m.get("content", ""), user_id)
+            
         messages = [MessageResponse(**m) for m in result]
         
         return PaginatedResponse(
@@ -134,10 +148,19 @@ class ConversationService:
         )
 
     def create_message(self, conversation_id: str, role: str, content: str, route: str = "", token_count: int = 0) -> MessageResponse:
+        from app.core.crypto import encrypt_message
+
+        conv_query = self._execute(
+            lambda c: c.table("conversations").select("user_id").eq("id", conversation_id)
+        ).data
+        user_id = conv_query[0].get("user_id") if conv_query else None
+
+        encrypted_content = encrypt_message(content, user_id)
+
         payload = {
             "conversation_id": conversation_id,
             "role": role,
-            "content": content,
+            "content": encrypted_content,
             "route": route,
             "token_count": token_count
         }
@@ -145,6 +168,7 @@ class ConversationService:
         try:
             result = self._execute(lambda c: c.table("messages").insert(payload)).data[0]
             print(f"DEBUG DB: Message inserted successfully: {result.get('id')}")
+            result["content"] = content
             result["citations"] = []
             return MessageResponse(**result)
         except Exception as e:

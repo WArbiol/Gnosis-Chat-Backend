@@ -248,12 +248,30 @@ class SupabaseDatabase(DatabaseGateway):
         token_count: int | None = None,
         suggested_followups: list[str] | None = None
     ) -> str:
+        from app.core.crypto import encrypt_message
+
         loop = asyncio.get_running_loop()
+
+        # Look up user_id from conversation to encrypt content
+        user_id = None
+        try:
+            conv_data = await loop.run_in_executor(
+                None,
+                lambda: self._execute(
+                    lambda c: c.table("conversations").select("user_id").eq("id", conversation_id).single()
+                )
+            )
+            if conv_data and conv_data.data:
+                user_id = conv_data.data.get("user_id")
+        except Exception:
+            pass
+
+        encrypted_content = encrypt_message(content, user_id)
         
         payload = {
             "conversation_id": conversation_id,
             "role": role,
-            "content": content
+            "content": encrypted_content
         }
         if route is not None:
             payload["route"] = route
@@ -286,9 +304,24 @@ class SupabaseDatabase(DatabaseGateway):
         limit: int = 10
     ) -> list[dict[str, str]]:
         from app.core.config import settings
+        from app.core.crypto import decrypt_message
 
         try:
             loop = asyncio.get_running_loop()
+
+            # Look up user_id to decrypt messages
+            user_id = None
+            try:
+                conv_data = await loop.run_in_executor(
+                    None,
+                    lambda: self._execute(
+                        lambda c: c.table("conversations").select("user_id").eq("id", conversation_id).single()
+                    )
+                )
+                if conv_data and conv_data.data:
+                    user_id = conv_data.data.get("user_id")
+            except Exception:
+                pass
 
             response = await loop.run_in_executor(
                 None,
@@ -304,9 +337,9 @@ class SupabaseDatabase(DatabaseGateway):
             if not response.data:
                 return []
 
-            # Inverte para ordem cronológica (mais antiga → mais recente)
+            # Inverte para ordem cronológica (mais antiga → mais recente) e descriptografa
             messages = [
-                {"role": row["role"], "content": row["content"]}
+                {"role": row["role"], "content": decrypt_message(row["content"], user_id)}
                 for row in reversed(response.data)
             ]
             return messages
