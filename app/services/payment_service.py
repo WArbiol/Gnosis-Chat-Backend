@@ -374,7 +374,7 @@ async def _handle_subscription_updated(subscription) -> None:
 
 
 async def cancel_subscription(user_id: str) -> None:
-    """Cancel the active Stripe subscription immediately and revert plan to free."""
+    """Cancel the active Stripe subscription at period end so user keeps paid access until current_period_end."""
     loop = asyncio.get_running_loop()
     client = get_supabase_client()
 
@@ -393,26 +393,24 @@ async def cancel_subscription(user_id: str) -> None:
     if not subscription_id or sub_status == "free":
         raise ValueError("Nenhuma assinatura ativa encontrada para cancelamento.")
 
-    try:
-        await loop.run_in_executor(
-            None,
-            lambda: stripe.Subscription.cancel(subscription_id),
-        )
-    except Exception as e:
-        print(f"STRIPE CANCEL WARNING: {e}")
+    await loop.run_in_executor(
+        None,
+        lambda: stripe.Subscription.modify(
+            subscription_id,
+            cancel_at_period_end=True,
+        ),
+    )
 
     await loop.run_in_executor(
         None,
         lambda: get_supabase_client().table("users")
         .update({
-            "plan": "free",
             "subscription_status": "canceled",
-            "stripe_subscription_id": None,
-            "current_period_end": None,
         })
         .eq("id", user_id)
         .execute(),
     )
+
 
 
 
