@@ -8,11 +8,40 @@ from app.core.dependencies import get_supabase_client
 
 stripe.api_key = settings.stripe_secret_key
 
-# Static mapping: Stripe Price ID → internal plan name
-PRICE_TO_PLAN: dict[str, str] = {
-    settings.stripe_price_basic: "basic",
-    settings.stripe_price_premium: "premium",
-}
+def get_price_to_plan() -> dict[str, str]:
+    """Dynamic mapping of Stripe Price ID -> internal plan name."""
+    mapping = {
+        # Live Production Price IDs
+        "price_1U4MJPPe2nJIREqqHWwJNL4A": "basic",
+        "price_1U4MJOPe2nJIREqq7ZIhgxlC": "premium",
+        # Test Price IDs
+        "price_1T5XKvB1ESQiEiyTMhGeLFCt": "basic",
+        "price_1T5XM3B1ESQiEiyTKJOXdvmq": "premium",
+    }
+    if settings.stripe_price_basic:
+        mapping[settings.stripe_price_basic] = "basic"
+    if settings.stripe_price_premium:
+        mapping[settings.stripe_price_premium] = "premium"
+    return mapping
+
+
+class PriceToPlanDict(dict):
+    def __getitem__(self, key):
+        return get_price_to_plan()[key]
+
+    def get(self, key, default=None):
+        return get_price_to_plan().get(key, default)
+
+    def __contains__(self, key):
+        return key in get_price_to_plan()
+
+    def values(self):
+        return get_price_to_plan().values()
+
+
+
+PRICE_TO_PLAN = PriceToPlanDict()
+
 
 
 async def get_or_create_stripe_customer(user_id: str, email: str) -> str:
@@ -114,7 +143,7 @@ async def create_checkout_session(user_id: str, email: str, price_id: str) -> st
     # Otherwise, create a new Stripe checkout session
     customer_id = await get_or_create_stripe_customer(user_id, email)
 
-    base_url = "https://gnosis-chat.app"
+    base_url = "https://gnosischat.com"
     if not settings.is_production and settings.cors_origins:
         base_url = settings.cors_origins[0].rstrip("/")
 
@@ -152,7 +181,7 @@ async def create_customer_portal_session(user_id: str) -> str:
     if not customer_id:
         raise ValueError("User has no Stripe customer record. Subscribe first.")
 
-    base_url = "https://gnosis-chat.app"
+    base_url = "https://gnosischat.com"
     if not settings.is_production and settings.cors_origins:
         base_url = settings.cors_origins[0].rstrip("/")
 
@@ -345,7 +374,7 @@ async def _handle_subscription_updated(subscription) -> None:
 
 
 async def cancel_subscription(user_id: str) -> None:
-    """Cancel the active Stripe subscription."""
+    """Cancel the active Stripe subscription immediately and revert plan to free."""
     loop = asyncio.get_running_loop()
     client = get_supabase_client()
 
@@ -364,23 +393,27 @@ async def cancel_subscription(user_id: str) -> None:
     if not subscription_id or sub_status == "free":
         raise ValueError("Nenhuma assinatura ativa encontrada para cancelamento.")
 
-    await loop.run_in_executor(
-        None,
-        lambda: stripe.Subscription.modify(
-            subscription_id,
-            cancel_at_period_end=True,
-        ),
-    )
+    try:
+        await loop.run_in_executor(
+            None,
+            lambda: stripe.Subscription.cancel(subscription_id),
+        )
+    except Exception as e:
+        print(f"STRIPE CANCEL WARNING: {e}")
 
     await loop.run_in_executor(
         None,
         lambda: get_supabase_client().table("users")
         .update({
+            "plan": "free",
             "subscription_status": "canceled",
+            "stripe_subscription_id": None,
+            "current_period_end": None,
         })
         .eq("id", user_id)
         .execute(),
     )
+
 
 
 async def _handle_subscription_deleted(subscription) -> None:
