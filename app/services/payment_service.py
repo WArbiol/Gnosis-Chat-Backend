@@ -412,6 +412,45 @@ async def cancel_subscription(user_id: str) -> None:
     )
 
 
+async def reactivate_subscription(user_id: str) -> None:
+    """Reactivate a subscription that was set to cancel at period end."""
+    loop = asyncio.get_running_loop()
+    client = get_supabase_client()
+
+    user_data = await loop.run_in_executor(
+        None,
+        lambda: client.table("users")
+        .select("stripe_subscription_id, subscription_status")
+        .eq("id", user_id)
+        .single()
+        .execute(),
+    )
+    user_record = user_data.data if user_data.data else {}
+    subscription_id = user_record.get("stripe_subscription_id")
+
+    if not subscription_id:
+        raise ValueError("Nenhuma assinatura encontrada para reativação.")
+
+    await loop.run_in_executor(
+        None,
+        lambda: stripe.Subscription.modify(
+            subscription_id,
+            cancel_at_period_end=False,
+        ),
+    )
+
+    await loop.run_in_executor(
+        None,
+        lambda: get_supabase_client().table("users")
+        .update({
+            "subscription_status": "active",
+        })
+        .eq("id", user_id)
+        .execute(),
+    )
+
+
+
 
 
 async def _handle_subscription_deleted(subscription) -> None:

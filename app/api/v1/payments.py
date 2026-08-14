@@ -43,6 +43,18 @@ async def cancel_subscription(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/reactivate")
+async def reactivate_subscription(
+    user: UserProfile = Depends(get_current_user),
+) -> dict:
+    """Reactivate a user's subscription that was scheduled to cancel."""
+    try:
+        await payment_service.reactivate_subscription(user_id=user.id)
+        return {"status": "reactivated"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/customer-portal")
 async def customer_portal(
     user: UserProfile = Depends(get_current_user),
