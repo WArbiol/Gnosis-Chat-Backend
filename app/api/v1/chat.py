@@ -83,11 +83,13 @@ async def ask(
 ):
     """Realiza uma pergunta ao chat e inicia o fluxo RAG agêntico via Server-Sent Events (SSE)."""
     
-    # Verifica se a conversa é nova para gerar título inteligente
-    if payload.conversation_id:
+    # Verifica se a conversa é nova para gerar título inteligente SOMENTE se tiver cota
+    limit = PlanLimits.get_question_limit(user.plan)
+    has_quota = user.question_count < limit
+
+    if payload.conversation_id and has_quota:
         try:
             conv = conv_service.get_conversation(str(payload.conversation_id))
-            # Se for a primeira mensagem (0 ou 1 dependendo se o flutter salvou), ou se chama "Nova conversa"
             if conv.title == "Nova conversa":
                 background_tasks.add_task(
                     conv_service.generate_title_async,
@@ -97,7 +99,6 @@ async def ask(
         except Exception as e:
             logger.warning(f"Erro ao verificar título da conversa {payload.conversation_id}: {e}")
 
-    
     async def event_generator():
         try:
             async for event in use_case.execute(
@@ -110,6 +111,13 @@ async def ask(
                 event_name = event.get("event", "message")
                 yield f"event: {event_name}\ndata: {json.dumps(event)}\n\n"
         except QuotaExceededException as qe:
+            if payload.conversation_id:
+                try:
+                    conv = conv_service.get_conversation(str(payload.conversation_id))
+                    if conv and len(conv.messages) == 0:
+                        conv_service.delete_conversation(str(payload.conversation_id))
+                except Exception:
+                    pass
             error_payload = {
                 "event": "error",
                 "code": "PAYMENT_REQUIRED",
