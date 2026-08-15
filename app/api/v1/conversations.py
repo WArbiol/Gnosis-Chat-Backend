@@ -78,16 +78,20 @@ def delete_conversation(
     current_user: UserProfile = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
-    """Delete a conversation."""
+    """Delete a conversation (idempotent)."""
     try:
         conv = service.get_conversation(str(conversation_id))
     except Exception:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        conv = None
+        
+    if not conv:
+        return None
         
     if str(conv.user_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Forbidden")
         
     service.delete_conversation(str(conversation_id))
+    return None
 
 
 @router.patch("/{conversation_id}", response_model=ConversationResponse)
@@ -101,6 +105,9 @@ def update_conversation(
     try:
         conv = service.get_conversation(str(conversation_id))
     except Exception:
+        conv = None
+        
+    if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
     if str(conv.user_id) != str(current_user.id):
@@ -121,6 +128,9 @@ def list_messages(
     try:
         conv = service.get_conversation(str(conversation_id))
     except Exception:
+        conv = None
+        
+    if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
     if str(conv.user_id) != str(current_user.id):
@@ -141,6 +151,9 @@ def create_message(
     try:
         conv = service.get_conversation(str(conversation_id))
     except Exception:
+        conv = None
+        
+    if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
     if str(conv.user_id) != str(current_user.id):
