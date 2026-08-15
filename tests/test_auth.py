@@ -128,3 +128,22 @@ async def test_verify_second_chamber_correct(client: AsyncClient, mock_user):
 
     # Clean up overrides
     app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_delete_account_unauthenticated(client: AsyncClient):
+    response = await client.post("/api/v1/auth/delete-account")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_delete_account_authenticated(client: AsyncClient, mock_user):
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    with patch("app.services.auth_service.delete_user_account", return_value={"status": "success", "message": "Conta e dados excluídos com sucesso."}):
+        response = await client.post("/api/v1/auth/delete-account")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+
+    app.dependency_overrides.clear()

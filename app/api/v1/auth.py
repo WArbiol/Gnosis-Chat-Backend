@@ -113,3 +113,9 @@ async def verify_second_chamber(
     else:
         return {"valid": False, "reason": "Passe incorreto. Tente novamente."}
 
+
+@router.post("/delete-account")
+async def delete_account(current_user: UserProfile = Depends(get_current_user)):
+    """Permanently delete user profile, conversation data, active Stripe subscription, and authentication record."""
+    return await auth_service.delete_user_account(current_user.id)
+
