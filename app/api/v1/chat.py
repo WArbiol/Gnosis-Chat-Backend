@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from app.core.security import get_current_user
 from app.core.dependencies import get_supabase_client
 from app.schemas.chat import ChatRequest, UIFilters
-from app.schemas.user import UserProfile
+from app.schemas.user import UserProfile, PlanLimits
 from app.domain.exceptions import QuotaExceededException
 from app.core.limiter import limiter
 from app.services.conversation_service import ConversationService
