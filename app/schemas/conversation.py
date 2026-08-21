@@ -20,7 +20,7 @@ class CitationResponse(BaseModel):
     message_id: UUID
     pdf_name: str
     page: int
-    snippet: str
+    snippet: str = ""
     chunk_id: str | None = None
     sort_order: int = 0
 

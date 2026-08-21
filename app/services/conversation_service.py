@@ -87,7 +87,7 @@ class ConversationService:
         
         # Fetch initial messages (first page)
         msgs_result = self._execute(
-            lambda c: c.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(50)
+            lambda c: c.table("messages").select("*, citations(id, message_id, pdf_name, page, sort_order)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(50)
         ).data
         
         from app.core.crypto import decrypt_message, encrypt_message
@@ -108,6 +108,14 @@ class ConversationService:
             updated_at=datetime.fromisoformat(conv_result["updated_at"]),
             messages=messages
         )
+
+    def get_citation_snippet(self, citation_id: str) -> str | None:
+        result = self._execute(
+            lambda c: c.table("citations").select("id, snippet").eq("id", citation_id)
+        ).data
+        if not result:
+            return None
+        return result[0].get("snippet", "")
 
     def delete_conversation(self, conversation_id: str) -> None:
         self._execute(lambda c: c.table("conversations").delete().eq("id", conversation_id))
@@ -155,7 +163,7 @@ class ConversationService:
         user_id = conv_query[0].get("user_id") if conv_query else None
 
         def _build(client: Client):
-            q = client.table("messages").select("*, citations(*)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(limit + 1)
+            q = client.table("messages").select("*, citations(id, message_id, pdf_name, page, sort_order)").eq("conversation_id", conversation_id).order("created_at", desc=False).limit(limit + 1)
             if cursor:
                 q = q.gt("created_at", cursor)
             return q
