@@ -113,7 +113,9 @@ def update_conversation(
     if str(conv.user_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Forbidden")
         
-    return service.update_conversation(str(conversation_id), data.title)
+    return service.update_conversation(
+        str(conversation_id), title=data.title, is_pinned=data.is_pinned
+    )
 
 
 @router.get("/{conversation_id}/messages", response_model=PaginatedResponse[MessageResponse])

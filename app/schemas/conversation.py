@@ -43,13 +43,15 @@ class ConversationCreate(BaseModel):
 
 
 class ConversationUpdate(BaseModel):
-    title: str
+    title: str | None = None
+    is_pinned: bool | None = None
 
 
 class ConversationResponse(TimestampedModel):
     id: UUID
     user_id: UUID
     title: str
+    is_pinned: bool = False
 
 
 class ConversationDetail(ConversationResponse):

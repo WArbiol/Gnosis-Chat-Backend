@@ -32,7 +32,7 @@ class ConversationService:
 
     def list_conversations(self, limit: int = 20, cursor: str | None = None) -> PaginatedResponse[ConversationResponse]:
         def _build(client: Client):
-            q = client.table("conversations").select("*").order("updated_at", desc=True).limit(limit + 1)
+            q = client.table("conversations").select("*").order("is_pinned", desc=True).order("updated_at", desc=True).limit(limit + 1)
             if cursor:
                 q = q.lt("updated_at", cursor)
             return q
@@ -50,6 +50,7 @@ class ConversationService:
                 id=r["id"],
                 user_id=r["user_id"],
                 title=r["title"],
+                is_pinned=r.get("is_pinned", False),
                 created_at=datetime.fromisoformat(r["created_at"]),
                 updated_at=datetime.fromisoformat(r["updated_at"]),
             ) for r in result
@@ -69,6 +70,7 @@ class ConversationService:
             id=result["id"],
             user_id=result["user_id"],
             title=result["title"],
+            is_pinned=result.get("is_pinned", False),
             created_at=datetime.fromisoformat(result["created_at"]),
             updated_at=datetime.fromisoformat(result["updated_at"]),
         )
@@ -101,6 +103,7 @@ class ConversationService:
             id=conv_result["id"],
             user_id=conv_result["user_id"],
             title=conv_result["title"],
+            is_pinned=conv_result.get("is_pinned", False),
             created_at=datetime.fromisoformat(conv_result["created_at"]),
             updated_at=datetime.fromisoformat(conv_result["updated_at"]),
             messages=messages
@@ -109,11 +112,39 @@ class ConversationService:
     def delete_conversation(self, conversation_id: str) -> None:
         self._execute(lambda c: c.table("conversations").delete().eq("id", conversation_id))
 
-    def update_conversation(self, conversation_id: str, title: str) -> ConversationResponse:
+    def update_conversation(
+        self, conversation_id: str, title: str | None = None, is_pinned: bool | None = None
+    ) -> ConversationResponse:
+        update_data = {}
+        if title is not None:
+            update_data["title"] = title
+        if is_pinned is not None:
+            update_data["is_pinned"] = is_pinned
+
+        if not update_data:
+            conv = self.get_conversation(conversation_id)
+            if not conv:
+                raise ValueError(f"Conversation {conversation_id} not found")
+            return ConversationResponse(
+                id=conv.id,
+                user_id=conv.user_id,
+                title=conv.title,
+                is_pinned=conv.is_pinned,
+                created_at=conv.created_at,
+                updated_at=conv.updated_at,
+            )
+
         result = self._execute(
-            lambda c: c.table("conversations").update({"title": title}).eq("id", conversation_id)
+            lambda c: c.table("conversations").update(update_data).eq("id", conversation_id)
         ).data[0]
-        return ConversationResponse(**result)
+        return ConversationResponse(
+            id=result["id"],
+            user_id=result["user_id"],
+            title=result["title"],
+            is_pinned=result.get("is_pinned", False),
+            created_at=datetime.fromisoformat(result["created_at"]),
+            updated_at=datetime.fromisoformat(result["updated_at"]),
+        )
 
     def list_messages(self, conversation_id: str, limit: int = 50, cursor: str | None = None) -> PaginatedResponse[MessageResponse]:
         from app.core.crypto import decrypt_message
