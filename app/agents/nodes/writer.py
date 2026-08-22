@@ -55,8 +55,8 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
     )
 
     prompt = (
-        f"Histórico Recente:\n{history}\n\n"
         f"Fontes de Referência:\n{context_str}\n"
+        f"Histórico Recente da Conversa (Contexto auxiliar):\n{history}\n\n"
         f"Pergunta do Usuário: {query}\n\n"
         "Escreva a melhor resposta possível utilizando estritamente as fontes acima."
     )

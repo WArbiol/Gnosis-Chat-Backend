@@ -68,12 +68,16 @@ class AskRagUseCase:
             content=query
         )
 
-        # 4. Configurar estado inicial do grafo, limpando o estado da rodada anterior
+        # 4. Configurar estado inicial do grafo, recuperando o histórico prévio (sem duplicar a pergunta atual)
+        recent_messages = await self.database.get_recent_messages(conversation_id, limit=10) if conversation_id else []
+        if recent_messages and recent_messages[-1].get("role") == "user" and recent_messages[-1].get("content") == query:
+            recent_messages = recent_messages[:-1]
+
         initial_state = {
             "query": query,
             "user": user_profile.model_dump() if user_profile else {},
             "ui_filters": ui_filters.model_dump() if ui_filters else {},
-            "conversation_history": await self.database.get_recent_messages(conversation_id, limit=10) if conversation_id else [],
+            "conversation_history": recent_messages,
             "session_counters": {
                 "researcher_calls": 0,
                 "critique_loops": 0,
