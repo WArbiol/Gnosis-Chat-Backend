@@ -16,16 +16,27 @@ from app.core.limiter import limiter
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     import logging
+    import asyncio
     from app.agents.nodes.utils import get_llm, get_vector_store, get_reranker
-    from app.agents.graph import compiled_graph
     
     logger = logging.getLogger("startup")
     logger.info("Iniciando o aquecimento (warm-up) das conexões...")
     
-    # Isso forçará a inicialização do QdrantClient, Gemini e Vertex
-    get_llm()
-    get_vector_store()
-    get_reranker()
+    # 1. Instanciar gateways
+    llm = get_llm()
+    vector_store = get_vector_store()
+    reranker = get_reranker()
+    
+    # 2. Executar warmup de rede (TLS handshake e pool de conexões) de forma não-bloqueante
+    async def pre_warm():
+        try:
+            if settings.google_api_key:
+                await llm.generate_embeddings("gnosis")
+            logger.info("Warm-up do Google GenAI embeddings concluído com sucesso.")
+        except Exception as e:
+            logger.warning(f"Warm-up de embeddings ignorado/falhou: {e}")
+
+    asyncio.create_task(pre_warm())
     
     logger.info("Conexões aquecidas. LangGraph compilado e pronto para requisições.")
     yield
