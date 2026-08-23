@@ -227,13 +227,13 @@ class AskRagUseCase:
                     event = msg["data"]
                     event_type = event.get("event")
                     node_name = event.get("metadata", {}).get("langgraph_node")
-
-                    if event_type == "on_chain_start" and node_name in STATUS_MESSAGES and node_name != last_emitted_node:
-                        last_emitted_node = node_name
+                    current_node = node_name if node_name in STATUS_MESSAGES else event.get("name")
+                    if event_type in ("on_chain_start", "on_node_start") and current_node in STATUS_MESSAGES and current_node != last_emitted_node:
+                        last_emitted_node = current_node
                         yield {
                             "event": "status",
-                            "agent": node_name,
-                            "message": STATUS_MESSAGES[node_name]
+                            "agent": current_node,
+                            "message": STATUS_MESSAGES[current_node]
                         }
 
                     elif event_type == "on_custom_event" and event.get("name") == "writer_token":
