@@ -107,3 +107,16 @@ async def test_premium_plan_no_reset_in_same_month():
         
     assert profile.question_count == 15
     mock_client.table().update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_increment_with_current_count_sets_exact_new_value():
+    """Valida que passar current_count incrementa atomicamente sem re-consultar o banco."""
+    db, mock_client = setup_mock_db(plan="free", question_count=3, last_reset_at=MOCK_NOW_WED)
+    
+    # Simula que o perfil foi resetado para 0 no início do use case
+    await db.increment_user_question_count("real-uuid-style-id-123", current_count=0)
+    
+    mock_client.table.assert_called_with("users")
+    mock_client.table().update.assert_called_with({"question_count": 1})
+

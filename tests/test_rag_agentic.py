@@ -143,7 +143,7 @@ class MockDatabase(DatabaseGateway):
     async def get_user_profile(self, user_id: str) -> UserProfile:
         return self.profile
 
-    async def increment_user_question_count(self, user_id: str) -> None:
+    async def increment_user_question_count(self, user_id: str, current_count: int | None = None) -> None:
         self.question_count_incremented = True
 
     async def count_user_messages_in_last_7_days(self, user_id: str) -> int:

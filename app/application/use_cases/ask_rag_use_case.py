@@ -174,8 +174,11 @@ class AskRagUseCase:
                     
                     if citations:
                         await self.database.save_citations(msg_id, citations)
-                    
-                    await self.database.increment_user_question_count(user_id)
+
+                    await self.database.increment_user_question_count(
+                        user_id,
+                        current_count=user_profile.question_count
+                    )
                 else:
                     clean_question = answer.replace("PAUSE_HIL: ", "")
                     await self.database.save_message(

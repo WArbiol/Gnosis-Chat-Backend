@@ -183,7 +183,7 @@ class SupabaseDatabase(DatabaseGateway):
                 )
             raise e
 
-    async def increment_user_question_count(self, user_id: str) -> None:
+    async def increment_user_question_count(self, user_id: str, current_count: int | None = None) -> None:
         from app.core.config import settings
         if settings.app_env == "development" and (user_id.startswith("test-") or "user-token" in user_id or "test" in user_id):
             return
@@ -191,9 +191,11 @@ class SupabaseDatabase(DatabaseGateway):
         try:
             loop = asyncio.get_running_loop()
             
-            # Recupera valor atual
-            profile = await self.get_user_profile(user_id)
-            new_count = profile.question_count + 1
+            if current_count is not None:
+                new_count = current_count + 1
+            else:
+                profile = await self.get_user_profile(user_id)
+                new_count = profile.question_count + 1
             
             await loop.run_in_executor(
                 None,

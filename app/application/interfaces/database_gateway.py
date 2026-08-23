@@ -11,7 +11,7 @@ class DatabaseGateway(ABC):
         pass
 
     @abstractmethod
-    async def increment_user_question_count(self, user_id: str) -> None:
+    async def increment_user_question_count(self, user_id: str, current_count: int | None = None) -> None:
         """Incrementa a cota de perguntas realizadas do usuário em 1."""
         pass
 
