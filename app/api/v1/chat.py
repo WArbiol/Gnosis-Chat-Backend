@@ -88,16 +88,11 @@ async def ask(
     has_quota = user.question_count < limit
 
     if payload.conversation_id and has_quota:
-        try:
-            conv = conv_service.get_conversation(str(payload.conversation_id))
-            if conv.title == "Nova conversa":
-                background_tasks.add_task(
-                    conv_service.generate_title_async,
-                    str(payload.conversation_id),
-                    payload.query
-                )
-        except Exception as e:
-            logger.warning(f"Erro ao verificar título da conversa {payload.conversation_id}: {e}")
+        background_tasks.add_task(
+            conv_service.generate_title_async,
+            str(payload.conversation_id),
+            payload.query
+        )
 
     async def event_generator():
         try:

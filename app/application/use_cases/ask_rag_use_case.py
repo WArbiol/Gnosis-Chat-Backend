@@ -69,7 +69,7 @@ class AskRagUseCase:
         )
 
         # 4. Configurar estado inicial do grafo, recuperando o histórico prévio (sem duplicar a pergunta atual)
-        recent_messages = await self.database.get_recent_messages(conversation_id, limit=10) if conversation_id else []
+        recent_messages = await self.database.get_recent_messages(conversation_id, limit=6) if conversation_id else []
         if recent_messages and recent_messages[-1].get("role") == "user" and recent_messages[-1].get("content") == query:
             recent_messages = recent_messages[:-1]
 
@@ -208,7 +208,14 @@ class AskRagUseCase:
 
         # Start the background task
         bg_task = asyncio.create_task(run_graph_and_save())
-        last_emitted_node = None
+        last_emitted_node = "orchestrator"
+
+        # Immediately yield initial status to establish SSE headers and provide instant feedback
+        yield {
+            "event": "status",
+            "agent": "orchestrator",
+            "message": STATUS_MESSAGES["orchestrator"]
+        }
 
         try:
             while True:

@@ -215,12 +215,24 @@ class ConversationService:
             raise
 
     async def generate_title_async(self, conversation_id: str, initial_message: str):
-        """Asynchronously updates the conversation title based on the first message."""
+        """Asynchronously updates the conversation title based on the first message if still default."""
         from app.agents.nodes.utils import get_llm
+        loop = asyncio.get_running_loop()
         
+        try:
+            # 1. Check title lightly without loading or decrypting messages
+            conv_data = await loop.run_in_executor(
+                None,
+                lambda: self._execute(lambda c: c.table("conversations").select("title").eq("id", conversation_id)).data
+            )
+            if not conv_data or conv_data[0].get("title") != "Nova conversa":
+                return
+        except Exception as e:
+            print(f"Error checking conversation title for {conversation_id}: {e}")
+            return
+
         # Simple heuristic fallback (e.g., first N chars)
         short_title = (initial_message[:30] + "...") if len(initial_message) > 30 else initial_message
-        loop = asyncio.get_running_loop()
         
         try:
             llm = get_llm()
@@ -248,4 +260,20 @@ class ConversationService:
                 None,
                 lambda: self._execute(lambda c: c.table("conversations").update({"title": short_title}).eq("id", conversation_id))
             )
+
+    async def cleanup_empty_conversation_async(self, conversation_id: str):
+        """Asynchronously deletes a newly created conversation if it remains empty."""
+        loop = asyncio.get_running_loop()
+        try:
+            msgs = await loop.run_in_executor(
+                None,
+                lambda: self._execute(lambda c: c.table("messages").select("id").eq("conversation_id", conversation_id).limit(1)).data
+            )
+            if not msgs:
+                await loop.run_in_executor(
+                    None,
+                    lambda: self._execute(lambda c: c.table("conversations").delete().eq("id", conversation_id))
+                )
+        except Exception as e:
+            print(f"Error cleaning up empty conversation {conversation_id}: {e}")
 
