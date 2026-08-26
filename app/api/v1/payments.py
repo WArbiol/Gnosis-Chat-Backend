@@ -79,3 +79,21 @@ async def stripe_webhook(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok"}
+
+
+@router.post("/revenuecat-webhook")
+async def revenuecat_webhook(
+    request: Request,
+    authorization: str | None = Header(default=None, alias="authorization"),
+) -> dict:
+    """Receive and process RevenueCat webhook events (Apple App Store / Google Play)."""
+    try:
+        payload = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {e}")
+
+    try:
+        await payment_service.handle_revenuecat_webhook(payload, authorization)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    return {"status": "ok"}

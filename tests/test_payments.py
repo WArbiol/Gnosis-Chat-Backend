@@ -169,6 +169,38 @@ class TestWebhook:
         assert response.json()["status"] == "ok"
 
 
+class TestRevenueCatWebhook:
+    @pytest.mark.asyncio
+    async def test_revenuecat_webhook_invalid_auth(self, client: AsyncClient):
+        with patch(
+            "app.services.payment_service.handle_revenuecat_webhook",
+            side_effect=ValueError("Invalid RevenueCat authorization header"),
+        ):
+            response = await client.post(
+                "/api/v1/payments/revenuecat-webhook",
+                json={"event": {"type": "INITIAL_PURCHASE"}},
+                headers={"authorization": "Bearer bad_token"},
+            )
+
+        assert response.status_code == 401
+        assert "Invalid RevenueCat authorization header" in response.json()["message"]
+
+    @pytest.mark.asyncio
+    async def test_revenuecat_webhook_success(self, client: AsyncClient):
+        with patch(
+            "app.services.payment_service.handle_revenuecat_webhook",
+            return_value=None,
+        ):
+            response = await client.post(
+                "/api/v1/payments/revenuecat-webhook",
+                json={"event": {"type": "INITIAL_PURCHASE", "app_user_id": "u123", "entitlement_ids": ["premium"]}},
+                headers={"authorization": "Bearer rc_whsec_gnosis_2026_secure"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+
+
 # ---------------------------------------------------------------------------
 # Service layer: PRICE_TO_PLAN mapping
 # ---------------------------------------------------------------------------
@@ -232,3 +264,102 @@ class TestPlanLimits:
         from app.schemas.user import PlanLimits
         assert not hasattr(PlanLimits, "INTERESTS")
         assert not hasattr(PlanLimits, "get_interest_limit")
+
+
+# ---------------------------------------------------------------------------
+# Service: handle_revenuecat_webhook
+# ---------------------------------------------------------------------------
+
+class TestRevenueCatService:
+    @pytest.mark.asyncio
+    async def test_handle_initial_purchase(self):
+        from app.services.payment_service import handle_revenuecat_webhook
+
+        mock_supabase = MagicMock()
+        mock_table = MagicMock()
+        mock_update = MagicMock()
+        mock_eq = MagicMock()
+        mock_execute = MagicMock()
+
+        mock_supabase.table.return_value = mock_table
+        mock_table.update.return_value = mock_update
+        mock_update.eq.return_value = mock_eq
+        mock_eq.execute.return_value = mock_execute
+
+        payload = {
+            "event": {
+                "type": "INITIAL_PURCHASE",
+                "app_user_id": "user-uuid-123",
+                "product_id": "gnosis_premium_monthly",
+                "entitlement_ids": ["premium"],
+                "expiration_at_ms": 1727275000000,
+            }
+        }
+
+        with patch("app.services.payment_service.get_supabase_client", return_value=mock_supabase):
+            await handle_revenuecat_webhook(payload, "Bearer rc_whsec_gnosis_2026_secure")
+
+        mock_table.update.assert_called_once()
+        update_arg = mock_table.update.call_args[0][0]
+        assert update_arg["plan"] == "premium"
+        assert update_arg["subscription_provider"] == "revenuecat"
+        assert update_arg["subscription_status"] == "active"
+        assert update_arg["question_count"] == 0
+        assert "current_period_end" in update_arg
+        mock_update.eq.assert_called_once_with("id", "user-uuid-123")
+
+    @pytest.mark.asyncio
+    async def test_handle_cancellation(self):
+        from app.services.payment_service import handle_revenuecat_webhook
+
+        mock_supabase = MagicMock()
+        mock_table = MagicMock()
+        mock_update = MagicMock()
+        mock_eq = MagicMock()
+
+        mock_supabase.table.return_value = mock_table
+        mock_table.update.return_value = mock_update
+        mock_update.eq.return_value = mock_eq
+
+        payload = {
+            "event": {
+                "type": "CANCELLATION",
+                "app_user_id": "user-uuid-123",
+                "expiration_at_ms": 1727275000000,
+            }
+        }
+
+        with patch("app.services.payment_service.get_supabase_client", return_value=mock_supabase):
+            await handle_revenuecat_webhook(payload, "Bearer rc_whsec_gnosis_2026_secure")
+
+        update_arg = mock_table.update.call_args[0][0]
+        assert update_arg["subscription_status"] == "canceled"
+        assert "plan" not in update_arg  # keeps current plan until expiration
+
+    @pytest.mark.asyncio
+    async def test_handle_expiration(self):
+        from app.services.payment_service import handle_revenuecat_webhook
+
+        mock_supabase = MagicMock()
+        mock_table = MagicMock()
+        mock_update = MagicMock()
+        mock_eq = MagicMock()
+
+        mock_supabase.table.return_value = mock_table
+        mock_table.update.return_value = mock_update
+        mock_update.eq.return_value = mock_eq
+
+        payload = {
+            "event": {
+                "type": "EXPIRATION",
+                "app_user_id": "user-uuid-123",
+            }
+        }
+
+        with patch("app.services.payment_service.get_supabase_client", return_value=mock_supabase):
+            await handle_revenuecat_webhook(payload, "Bearer rc_whsec_gnosis_2026_secure")
+
+        update_arg = mock_table.update.call_args[0][0]
+        assert update_arg["plan"] == "free"
+        assert update_arg["subscription_status"] == "canceled"
+        assert update_arg["current_period_end"] is None

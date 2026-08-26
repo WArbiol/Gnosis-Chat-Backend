@@ -475,3 +475,113 @@ async def _handle_subscription_deleted(subscription) -> None:
         .execute(),
     )
     print(f"STRIPE WEBHOOK: customer.subscription.deleted → reverted to free, customer={customer_id}")
+
+
+async def handle_revenuecat_webhook(payload: dict, auth_header: str | None) -> None:
+    """Validate authorization and process RevenueCat subscription events (Apple & Google IAP)."""
+    # 1. Validate authorization header if secret is configured
+    if settings.revenuecat_webhook_secret:
+        expected_bearer = f"Bearer {settings.revenuecat_webhook_secret}"
+        if not auth_header or (auth_header != expected_bearer and auth_header != settings.revenuecat_webhook_secret):
+            raise ValueError("Invalid RevenueCat authorization header")
+
+    event = payload.get("event", {})
+    event_type = event.get("type")
+    app_user_id = event.get("app_user_id")
+
+    if not app_user_id:
+        print(f"REVENUECAT WEBHOOK: Ignored event {event_type} without app_user_id")
+        return
+
+    # Ignore anonymous RevenueCat IDs that are not mapped to Supabase users
+    if app_user_id.startswith("$RCAnonymousID:"):
+        print(f"REVENUECAT WEBHOOK: Ignored anonymous user event {event_type} for {app_user_id}")
+        return
+
+    # 2. Determine target plan from entitlement or product_id
+    entitlement_ids = event.get("entitlement_ids") or []
+    entitlement_id = event.get("entitlement_id")
+    if entitlement_id and entitlement_id not in entitlement_ids:
+        entitlement_ids.append(entitlement_id)
+
+    product_id = (event.get("product_id") or "").lower()
+
+    if "premium" in [e.lower() for e in entitlement_ids] or "premium" in product_id:
+        plan = "premium"
+    elif "basic" in [e.lower() for e in entitlement_ids] or "basic" in product_id:
+        plan = "basic"
+    else:
+        plan = "basic"
+
+    # Expiration date
+    expiration_at_ms = event.get("expiration_at_ms")
+    current_period_end = None
+    if expiration_at_ms:
+        current_period_end = datetime.fromtimestamp(expiration_at_ms / 1000, tz=timezone.utc).isoformat()
+
+    loop = asyncio.get_running_loop()
+    client = get_supabase_client()
+
+    # 3. Handle events
+    active_events = {
+        "INITIAL_PURCHASE",
+        "RENEWAL",
+        "PRODUCT_CHANGE",
+        "UNCANCELLATION",
+        "SUBSCRIPTION_EXTENDED",
+        "NON_RENEWING_PURCHASE",
+    }
+
+    if event_type in active_events:
+        update_data = {
+            "plan": plan,
+            "subscription_provider": "revenuecat",
+            "subscription_status": "active",
+            "question_count": 0,  # Reset monthly quota on purchase/renewal
+        }
+        if current_period_end:
+            update_data["current_period_end"] = current_period_end
+
+        await loop.run_in_executor(
+            None,
+            lambda: client.table("users")
+            .update(update_data)
+            .eq("id", app_user_id)
+            .execute(),
+        )
+        print(f"REVENUECAT WEBHOOK: {event_type} → plan={plan}, status=active, user={app_user_id}")
+
+    elif event_type == "CANCELLATION":
+        # User turned off auto-renew; access remains until expiration date
+        update_data = {
+            "subscription_status": "canceled",
+        }
+        if current_period_end:
+            update_data["current_period_end"] = current_period_end
+
+        await loop.run_in_executor(
+            None,
+            lambda: client.table("users")
+            .update(update_data)
+            .eq("id", app_user_id)
+            .execute(),
+        )
+        print(f"REVENUECAT WEBHOOK: CANCELLATION → status=canceled, user={app_user_id}")
+
+    elif event_type in {"EXPIRATION", "REVOCATION"}:
+        # Subscription ended or refunded — revert to free plan
+        await loop.run_in_executor(
+            None,
+            lambda: client.table("users")
+            .update({
+                "plan": "free",
+                "subscription_status": "canceled",
+                "current_period_end": None,
+            })
+            .eq("id", app_user_id)
+            .execute(),
+        )
+        print(f"REVENUECAT WEBHOOK: {event_type} → reverted to free, user={app_user_id}")
+
+    else:
+        print(f"REVENUECAT WEBHOOK: Unhandled event type: {event_type}")

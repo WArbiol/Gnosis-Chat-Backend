@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     stripe_price_basic: str = ""
     stripe_price_premium: str = ""
 
+    # RevenueCat
+    revenuecat_webhook_secret: str = "rc_whsec_gnosis_2026_secure"
+
     # LangSmith
     langchain_tracing_v2: bool = True
     langchain_api_key: str = ""
