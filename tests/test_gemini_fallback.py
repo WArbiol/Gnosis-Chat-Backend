@@ -17,10 +17,10 @@ async def test_generate_text_fallback_on_503():
     err_503 = APIError(503, {"error": {"message": "Model overloaded high spikes"}})
 
     resp_mock = MagicMock()
-    resp_mock.text = "Resposta vinda do fallback 3.7"
+    resp_mock.text = "Resposta vinda do fallback 3.6"
 
     mock_generate = AsyncMock()
-    # 1ª tentativa com 3.8 falha com 503, 2ª chamada (com fallback 3.7) tem sucesso
+    # 1ª tentativa com 3.8 falha com 503, 2ª chamada (com fallback 3.6) tem sucesso
     mock_generate.side_effect = [err_503, resp_mock]
 
     llm.client.aio.models.generate_content = mock_generate
@@ -30,12 +30,12 @@ async def test_generate_text_fallback_on_503():
         use_premium_model=True
     )
 
-    assert result == "Resposta vinda do fallback 3.7"
+    assert result == "Resposta vinda do fallback 3.6"
     assert mock_generate.call_count == 2
     # Primeira chamada foi para 3.8
     assert mock_generate.call_args_list[0].kwargs["model"] == "gemini-3.8-flash"
-    # Segunda chamada foi para 3.7
-    assert mock_generate.call_args_list[1].kwargs["model"] == "gemini-3.7-flash"
+    # Segunda chamada foi para 3.6
+    assert mock_generate.call_args_list[1].kwargs["model"] == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio
@@ -53,7 +53,7 @@ async def test_generate_text_stream_fallback_on_503():
                 yield chunk
 
     mock_stream_call = AsyncMock()
-    # 1ª tentativa com 3.8 falha com 503, 2ª chamada (fallback 3.7) retorna o stream
+    # 1ª tentativa com 3.8 falha com 503, 2ª chamada (fallback 3.6) retorna o stream
     mock_stream_call.side_effect = [err_503, MockStream()]
 
     llm.client.aio.models.generate_content_stream = mock_stream_call
@@ -68,7 +68,7 @@ async def test_generate_text_stream_fallback_on_503():
     assert "".join(collected) == "Chunk 1 Chunk 2"
     assert mock_stream_call.call_count == 2
     assert mock_stream_call.call_args_list[0].kwargs["model"] == "gemini-3.8-flash"
-    assert mock_stream_call.call_args_list[1].kwargs["model"] == "gemini-3.7-flash"
+    assert mock_stream_call.call_args_list[1].kwargs["model"] == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio
@@ -95,12 +95,12 @@ async def test_generate_json_fallback_on_503():
     assert result.summary == "Sucesso no fallback JSON"
     assert mock_generate.call_count == 2
     assert mock_generate.call_args_list[0].kwargs["model"] == "gemini-3.8-flash"
-    assert mock_generate.call_args_list[1].kwargs["model"] == "gemini-3.7-flash"
+    assert mock_generate.call_args_list[1].kwargs["model"] == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio
 async def test_generate_text_stream_double_fallback_on_503():
-    """Garante que se tanto 3.8 quanto 3.7 estiverem em pico (503), o sistema cai transparentemente no 3.5-flash."""
+    """Garante que se tanto 3.8 quanto 3.6 estiverem em pico (503), o sistema cai transparentemente no 3.5-flash."""
     llm = GeminiLLM()
 
     err_503 = APIError(503, {"error": {"message": "Model overloaded high spikes"}})
@@ -113,7 +113,7 @@ async def test_generate_text_stream_double_fallback_on_503():
                 yield chunk
 
     mock_stream_call = AsyncMock()
-    # 1ª tentativa 3.8 falha com 503, 2ª tentativa 3.7 falha com 503, 3ª tentativa (3.5) tem sucesso
+    # 1ª tentativa 3.8 falha com 503, 2ª tentativa 3.6 falha com 503, 3ª tentativa (3.5) tem sucesso
     mock_stream_call.side_effect = [err_503, err_503, MockStream()]
 
     llm.client.aio.models.generate_content_stream = mock_stream_call
@@ -128,7 +128,7 @@ async def test_generate_text_stream_double_fallback_on_503():
     assert "".join(collected) == "Resposta do 3.5"
     assert mock_stream_call.call_count == 3
     assert mock_stream_call.call_args_list[0].kwargs["model"] == "gemini-3.8-flash"
-    assert mock_stream_call.call_args_list[1].kwargs["model"] == "gemini-3.7-flash"
+    assert mock_stream_call.call_args_list[1].kwargs["model"] == "gemini-3.6-flash"
     assert mock_stream_call.call_args_list[2].kwargs["model"] == "gemini-3.5-flash"
 
 
@@ -155,7 +155,7 @@ async def test_generate_json_fallback_on_timeout():
     assert result.summary == "Sucesso após timeout"
     assert mock_generate.call_count == 2
     assert mock_generate.call_args_list[0].kwargs["model"] == "gemini-3.8-flash"
-    assert mock_generate.call_args_list[1].kwargs["model"] == "gemini-3.7-flash"
+    assert mock_generate.call_args_list[1].kwargs["model"] == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio

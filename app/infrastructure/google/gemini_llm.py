@@ -46,8 +46,8 @@ class GeminiLLM(LLMGateway):
         # Cascata de modelos em múltiplas rodadas:
         # Se um modelo sofrer pico 503, tenta o próximo imediatamente.
         # Se todos sofrerem pico simultâneo no Google, aguarda 1.5s de alívio e tenta novamente.
-        self.premium_models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
-        self.lite_models = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-2.5-flash"]
+        self.premium_models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash"]
+        self.lite_models = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash"]
 
     @property
     def premium_model(self) -> str:
