@@ -13,20 +13,34 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
     research_results = state.get("research_results") or []
     history = state.get("conversation_history") or []
 
-    # 1. Agregar chunks e citações disponíveis
+    # 1. Agregar chunks e citações com intercalação equilibrada (Round-Robin) entre as sub-queries.
+    # Garante que os melhores resultados ranqueados pelo Vertex AI de CADA sub-query
+    # entrem no contexto do Redator sem que uma sub-query monopolize todas as vagas.
+    MAX_WRITER_CHUNKS = 10
     chunks: list[str] = []
     available_citations: list[CitationResponse] = []
-    
-    for res in research_results:
-        for text, cit in zip(res.get("chunks", []), res.get("citations", [])):
-            if text not in chunks:
-                chunks.append(text)
-                available_citations.append(cit)
+    seen_chunks = set()
 
-    # Limitar aos 10 chunks mais relevantes para garantir amplitude de citações e profundidade teológica
-    MAX_WRITER_CHUNKS = 10
-    chunks = chunks[:MAX_WRITER_CHUNKS]
-    available_citations = available_citations[:MAX_WRITER_CHUNKS]
+    sub_query_items: list[list[tuple[str, Any]]] = []
+    for res in research_results:
+        items = list(zip(res.get("chunks", []), res.get("citations", [])))
+        if items:
+            sub_query_items.append(items)
+
+    if sub_query_items:
+        max_depth = max(len(items) for items in sub_query_items)
+        for depth in range(max_depth):
+            for items in sub_query_items:
+                if depth < len(items):
+                    text, cit = items[depth]
+                    if text not in seen_chunks:
+                        seen_chunks.add(text)
+                        chunks.append(text)
+                        available_citations.append(cit)
+                        if len(chunks) >= MAX_WRITER_CHUNKS:
+                            break
+            if len(chunks) >= MAX_WRITER_CHUNKS:
+                break
 
     # 2. Construir contexto para o redator
     context_str = ""
