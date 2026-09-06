@@ -46,8 +46,8 @@ class GeminiLLM(LLMGateway):
         # Cascata de modelos em múltiplas rodadas:
         # Se um modelo sofrer pico 503, tenta o próximo imediatamente.
         # Se todos sofrerem pico simultâneo no Google, aguarda 1.5s de alívio e tenta novamente.
-        self.premium_models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-2.5-flash"]
-        self.lite_models = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-3.7-flash"]
+        self.premium_models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
+        self.lite_models = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-2.5-flash"]
 
     @property
     def premium_model(self) -> str:
@@ -65,23 +65,27 @@ class GeminiLLM(LLMGateway):
     def fallback_lite_model(self) -> str:
         return self.lite_models[1]
 
-    @retry(
-        retry=retry_if_exception(is_retryable_error),
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=1, min=1, max=3),
-        reraise=True
-    )
     async def _execute_generate_content(
         self,
         model: str,
         contents: Any,
-        config: types.GenerateContentConfig
+        config: types.GenerateContentConfig,
+        timeout: float = 7.0
     ) -> Any:
-        return await self.client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config=config
-        )
+        try:
+            return await asyncio.wait_for(
+                self.client.aio.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config
+                ),
+                timeout=timeout
+            )
+        except (asyncio.TimeoutError, TimeoutError):
+            logger.warning(
+                f"⏱️ [LLM Call Timeout] Modelo {model} não respondeu em {timeout:.0f}s. Disparando fallback..."
+            )
+            raise TimeoutError(f"Timeout de {timeout:.0f}s aguardando resposta do modelo {model}")
 
     async def generate_text(
         self,
