@@ -8,10 +8,10 @@ from langchain_core.runnables import RunnableConfig
 class OrchestratorDecision(BaseModel):
     """Modelo de decisão estruturado retornado pelo LLM do Orquestrador."""
     thought: str = Field(
-        ..., description="Análise lógica detalhada (Chain-of-Thought) passo a passo. Avalie se a pergunta atual é uma continuação do histórico recente ou um novo tópico, identifique os termos-chave esotéricos, mapeie os possíveis livros/autores do acervo e planeje a melhor rota e sub-queries antes de definir os demais campos."
+        default="", description="Máximo 1 frase curta justificando a rota."
     )
     next_step: Literal["researcher", "direct_response", "ask_user"] = Field(
-        ..., description="Decide a rota. Escolha 'direct_response' para saudações, despedidas, conversas informais (chit-chat), perguntas gerais do mundo real (ex: hora, clima), sobre o assistente/aplicativo ou quando o usuário comandar explicitamente para não fazer pesquisa. Escolha 'ask_user' se a pergunta for vaga e indefinida. Escolha 'researcher' como a rota padrão e principal para qualquer pergunta sobre conceitos, estudos, reflexões ou ensinamentos contidos nas obras."
+        ..., description="Decide a rota. Escolha 'direct_response' APENAS para saudações simples (olá, bom dia), despedidas, ou sobre o app. Para QUALQUER pergunta sobre conceitos, amor, ego, consciência, morte, alma, espiritualidade ou estudos, escolha OBRIGATORIAMENTE 'researcher'. Escolha 'ask_user' apenas se for vaga demais."
     )
     sub_queries: list[str] = Field(
         default=[], description="Decomposição da query principal em até 3 sub-queries mais simples focadas em conceitos. IMPORTANTE: Nunca inclua nomes de livros, autores ou sufixos nas sub-queries, pois eles já serão filtrados via metadados e poluiriam os embeddings."
@@ -97,15 +97,12 @@ async def orchestrator_node(state: GraphState, config: RunnableConfig) -> dict[s
         "Você é o Orchestrator do sistema Pergunte à Gnosis, um RAG sobre obras gnósticas.\n"
         "Sua função é analisar a query do usuário e o histórico recente para decidir a rota e gerar sub-queries de busca vetorial limpas e naturais.\n\n"
         "ROTAS:\n"
-        "1. 'direct_response': DEVE ser usada para saudações, despedidas, conversas informais (chit-chat), "
-        "perguntas gerais do mundo real (ex: 'que horas são?', 'como está o tempo?'), perguntas sobre a identidade "
-        "do assistente ou o funcionamento do aplicativo (ex: 'quem é você?', 'o que você faz?'), ou quando o usuário "
-        "comandar explicitamente para não pesquisar (ex: 'não faça pesquisa', 'me responda diretamente'). Nesses casos, "
-        "forneça a resposta completa e amigável em 'direct_answer' (pt-BR).\n"
+        "1. 'direct_response': APENAS para saudações simples ('olá', 'bom dia'), despedidas ('tchau'), "
+        "ou perguntas sobre a identidade do assistente ('quem é você?'). NUNCA use direct_response para perguntas "
+        "sobre amor, vida, morte, ego, Deus, meditação ou qualquer outro conceito — estes são temas do acervo gnóstico e devem OBRIGATORIAMENTE ir para 'researcher'.\n"
         "2. 'ask_user': Deve ser usada APENAS quando a pergunta inicial for extremamente vaga e sem contexto (ex: 'como fazer?', 'fale sobre o livro'). "
         "Nesses casos, ofereça opções claras na 'clarification_question' (pt-BR).\n"
-        "3. 'researcher': ROTA PADRÃO E PRINCIPAL. Deve ser usada para quase todas as perguntas sobre conceitos teológicos, psicológicos ou esotéricos do acervo gnóstico "
-        "(ex: 'o que é o Ego?', 'aspectos do Divino Daimon', 'morte do ego') ou reflexões gerais que o acervo possa responder.\n\n"
+        "3. 'researcher': ROTA PADRÃO E PRINCIPAL. Deve ser usada para QUALQUER pergunta sobre conceitos, estudos, espiritualidade, amor, psicologia ou ensinamentos contidos nas obras."
         "DIRETRIZES PARA SUB-QUERIES (LIMPAS E NATURAIS):\n"
         "- As `sub_queries` (até 3) devem ser termos de busca claros, diretos e naturais sobre o tema que o usuário quer saber AGORA.\n"
         "- USO DO HISTÓRICO: Use o histórico apenas para resolver pronomes ou referências elípticas (ex: se o usuário perguntar 'e como ele morre?', use o histórico para saber que 'ele' = 'ego').\n"

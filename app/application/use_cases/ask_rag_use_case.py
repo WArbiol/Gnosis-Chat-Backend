@@ -217,9 +217,27 @@ class AskRagUseCase:
             "message": STATUS_MESSAGES["orchestrator"]
         }
 
+        tokens_emitted = 0
         try:
             while True:
-                msg = await queue.get()
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    if bg_task.done():
+                        break
+                    if last_emitted_node == "writer" and tokens_emitted == 0:
+                        yield {
+                            "event": "status",
+                            "agent": "writer",
+                            "message": "Consultando obras e redigindo com rigor..."
+                        }
+                    else:
+                        yield {
+                            "event": "ping",
+                            "message": "keepalive"
+                        }
+                    continue
+
                 if msg["type"] == "done":
                     break
                 elif msg["type"] == "error":
@@ -246,6 +264,7 @@ class AskRagUseCase:
                     elif event_type == "on_custom_event" and event.get("name") == "writer_token":
                         text = event.get("data", {}).get("text")
                         if text:
+                            tokens_emitted += 1
                             yield {
                                 "event": "token",
                                 "text": text

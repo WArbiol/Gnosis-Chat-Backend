@@ -1,0 +1,15 @@
+.venv
+.git
+.gitignore
+.pytest_cache
+tests
+scratch
+data
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.example
+*.md
+PLANNING

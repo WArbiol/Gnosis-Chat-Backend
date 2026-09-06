@@ -1,3 +1,5 @@
+import json
+import logging
 from typing import Any, Type, AsyncGenerator
 from google import genai
 from google.genai import types
@@ -6,26 +8,53 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from app.application.interfaces.llm_gateway import LLMGateway
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
+
 def is_retryable_error(exception: Exception) -> bool:
+    """Verifica se o erro é elegível para retry genérico com backoff (500, 502, 504)."""
     if isinstance(exception, APIError):
-        # Retentar para erros de servidor 5xx e rate limit 429
-        return exception.code in [429, 500, 503, 504]
+        # 503 e 429 são tratados pelo fallback imediato de modelo
+        return exception.code in [500, 502, 504]
     return False
 
+
+def is_overload_or_spike(exception: Exception) -> bool:
+    """Identifica especificamente erros de sobrecarga (503), picos de tráfego e limite de cota (429)."""
+    if isinstance(exception, APIError):
+        return exception.code in [429, 502, 503, 504]
+    err_str = str(exception).lower()
+    return any(k in err_str for k in ["503", "429", "overloaded", "resource_exhausted", "unavailable", "spikes"])
+
+
 class GeminiLLM(LLMGateway):
-    """Implementação concreta do LLMGateway usando o SDK google-genai do Google."""
+    """Implementação concreta do LLMGateway usando o SDK google-genai do Google com resiliência e fallback automático."""
 
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.google_api_key)
         self.lite_model = "gemini-3.5-flash-lite"
-        self.premium_model = "gemini-3.6-flash"  # Modelo estável e de alta qualidade da série 3.x
+        self.fallback_lite_model = "gemini-2.5-flash"
+        self.premium_model = "gemini-3.8-flash"  # Modelo primário: alta fidelidade teológica e citações
+        self.fallback_premium_model = "gemini-3.7-flash"  # Fallback de alta estabilidade para picos de carga (503/429)
 
     @retry(
         retry=retry_if_exception(is_retryable_error),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=1, max=3),
         reraise=True
     )
+    async def _execute_generate_content(
+        self,
+        model: str,
+        contents: Any,
+        config: types.GenerateContentConfig
+    ) -> Any:
+        return await self.client.aio.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config
+        )
+
     async def generate_text(
         self,
         prompt: str,
@@ -33,19 +62,36 @@ class GeminiLLM(LLMGateway):
         temperature: float = 0.2,
         use_premium_model: bool = False
     ) -> str:
-        model = self.premium_model if use_premium_model else self.lite_model
-        
+        primary_model = self.premium_model if use_premium_model else self.lite_model
+        fallback_model = self.fallback_premium_model if use_premium_model else self.fallback_lite_model
+
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction
         )
-        
-        response = await self.client.aio.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=config
-        )
-        return response.text or ""
+
+        try:
+            response = await self._execute_generate_content(
+                model=primary_model,
+                contents=prompt,
+                config=config
+            )
+            return response.text or ""
+        except Exception as e:
+            if not is_overload_or_spike(e) or not fallback_model or fallback_model == primary_model:
+                logger.error(f"Erro em generate_text com {primary_model}: {e}")
+                raise e
+
+            logger.warning(
+                f"⚠️ [LLM Fallback] Modelo {primary_model} sobrecarregado ({getattr(e, 'code', '503/spikes')}). "
+                f"Ativando fallback imediato para {fallback_model}..."
+            )
+            response = await self._execute_generate_content(
+                model=fallback_model,
+                contents=prompt,
+                config=config
+            )
+            return response.text or ""
 
     async def generate_text_stream(
         self,
@@ -54,15 +100,39 @@ class GeminiLLM(LLMGateway):
         temperature: float = 0.2,
         use_premium_model: bool = False
     ) -> AsyncGenerator[str, None]:
-        model = self.premium_model if use_premium_model else self.lite_model
-        
+        primary_model = self.premium_model if use_premium_model else self.lite_model
+        fallback_model = self.fallback_premium_model if use_premium_model else self.fallback_lite_model
+
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction
         )
-        
+
+        yielded_any = False
+        try:
+            response_stream = await self.client.aio.models.generate_content_stream(
+                model=primary_model,
+                contents=prompt,
+                config=config
+            )
+            async for chunk in response_stream:
+                if chunk.text:
+                    yielded_any = True
+                    yield chunk.text
+            return
+        except Exception as e:
+            if yielded_any or not is_overload_or_spike(e) or not fallback_model or fallback_model == primary_model:
+                logger.error(f"Erro no streaming com modelo {primary_model}: {e}")
+                raise e
+
+            logger.warning(
+                f"⚠️ [LLM Stream Fallback] Modelo {primary_model} sobrecarregado ({getattr(e, 'code', '503/spikes')}). "
+                f"Ativando fallback em tempo real para {fallback_model}..."
+            )
+
+        # Fallback imediato se o modelo primário falhou antes de iniciar o envio de chunks
         response_stream = await self.client.aio.models.generate_content_stream(
-            model=model,
+            model=fallback_model,
             contents=prompt,
             config=config
         )
@@ -70,12 +140,6 @@ class GeminiLLM(LLMGateway):
             if chunk.text:
                 yield chunk.text
 
-    @retry(
-        retry=retry_if_exception(is_retryable_error),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
-        reraise=True
-    )
     async def generate_json(
         self,
         prompt: str,
@@ -84,30 +148,41 @@ class GeminiLLM(LLMGateway):
         temperature: float = 0.1,
         use_premium_model: bool = False
     ) -> Any:
-        model = self.premium_model if use_premium_model else self.lite_model
-        
+        primary_model = self.premium_model if use_premium_model else self.lite_model
+        fallback_model = self.fallback_premium_model if use_premium_model else self.fallback_lite_model
+
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction,
             response_mime_type="application/json",
             response_schema=response_schema
         )
-        
-        response = await self.client.aio.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=config
-        )
-        
-        # O SDK preenche e retorna o objeto diretamente no formato do schema se especificado
-        # mas como retornamos Any, convertemos de volta de JSON ou instanciamos se Pydantic
-        import json
+
+        try:
+            response = await self._execute_generate_content(
+                model=primary_model,
+                contents=prompt,
+                config=config
+            )
+        except Exception as e:
+            if not is_overload_or_spike(e) or not fallback_model or fallback_model == primary_model:
+                logger.error(f"Erro em generate_json com {primary_model}: {e}")
+                raise e
+
+            logger.warning(
+                f"⚠️ [LLM JSON Fallback] Modelo {primary_model} indisponível ({getattr(e, 'code', '503/spikes')}). "
+                f"Ativando fallback para {fallback_model}..."
+            )
+            response = await self._execute_generate_content(
+                model=fallback_model,
+                contents=prompt,
+                config=config
+            )
+
         text_data = response.text or "{}"
-        
-        # Se for um modelo Pydantic, instanciar a partir do dicionário JSON
         if hasattr(response_schema, "model_validate_json"):
             return response_schema.model_validate_json(text_data)
-        
+
         return json.loads(text_data)
 
     @retry(
@@ -121,8 +196,7 @@ class GeminiLLM(LLMGateway):
             model="gemini-embedding-2-preview",
             contents=text
         )
-        
-        # Extrair valores dos embeddings
+
         if response.embeddings:
             return response.embeddings[0].values
         return []

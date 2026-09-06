@@ -11,18 +11,21 @@ dependencies = [
     "httpx>=0.28.0",
     "supabase>=2.11.0",
     "qdrant-client>=1.18.0",
-    "llama-index>=0.12.0",
-    "llama-index-vector-stores-qdrant",
-    "llama-index-embeddings-google-genai",
     "langgraph",
     "langsmith>=0.2.0",
     "google-genai>=1.0.0",
     "stripe>=11.0.0",
-    "pymupdf>=1.25.0",
-    "pytesseract>=0.3.13",
     "python-multipart>=0.0.18",
     "pyjwt>=2.11.0",
     "cryptography>=46.0.5",
+    "slowapi>=0.1.10",
+    "tenacity>=9.0.0",
+]
+
+[project.optional-dependencies]
+ingestion = [
+    "pymupdf>=1.25.0",
+    "pytesseract>=0.3.13",
     "unstructured[pdf]>=0.21.5",
     "unstructured-inference>=1.2.0",
     "onnxruntime-gpu>=1.24.3; sys_platform == 'linux' or sys_platform == 'win32'",
@@ -30,11 +33,11 @@ dependencies = [
     "onnxruntime<=1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "numba<0.63.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "llvmlite<0.46.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "llama-index>=0.12.0",
+    "llama-index-vector-stores-qdrant",
+    "llama-index-embeddings-google-genai",
     "tqdm>=4.67.3",
-    "slowapi>=0.1.10",
 ]
-
-[project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",

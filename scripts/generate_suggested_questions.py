@@ -174,10 +174,11 @@ async def generate_questions_for_batch(
     BANNED_WORDS = {'óbice', 'exegese', 'outrossim', 'concomitante', 'axiomático', 'ontológico', 'epistemológico', 'quiçá', 'porventura'}
 
     async with semaphore:
-        for attempt in range(3):
+        for attempt in range(4):
+            model_to_use = "gemini-3.8-flash" if attempt < 2 else "gemini-3.7-flash"
             try:
                 response = await client.aio.models.generate_content(
-                    model="gemini-3.8-flash",
+                    model=model_to_use,
                     contents=prompt,
                     config=config
                 )
@@ -194,8 +195,32 @@ async def generate_questions_for_batch(
                 if clean:
                     return clean
             except Exception as e:
-                if attempt == 2:
-                    print(f"[{book_name}] Falha na geração após 3 tentativas: {e}")
+                err_str = str(e).lower()
+                is_spike = any(k in err_str for k in ["503", "429", "overloaded", "spikes", "resource_exhausted"])
+                if is_spike and model_to_use == "gemini-3.8-flash":
+                    print(f"[{book_name}] ⚠️ Sobrecarga/Spike (503/429) no 3.8. Tentando imediatamente no gemini-3.7-flash...")
+                    try:
+                        fallback_resp = await client.aio.models.generate_content(
+                            model="gemini-3.7-flash",
+                            contents=prompt,
+                            config=config
+                        )
+                        text_data = fallback_resp.text or "{}"
+                        parsed = QuestionBatch.model_validate_json(text_data)
+                        clean = []
+                        for q in parsed.questions:
+                            q = q.strip().rstrip("?") + "?"
+                            if any(bw in q.lower() for bw in BANNED_WORDS):
+                                continue
+                            if 30 <= len(q) <= 85:
+                                clean.append(q)
+                        if clean:
+                            return clean
+                    except Exception as fb_err:
+                        print(f"[{book_name}] Falha no fallback 3.7: {fb_err}")
+
+                if attempt == 3:
+                    print(f"[{book_name}] Falha na geração após 4 tentativas: {e}")
                 await asyncio.sleep(1.5 * (attempt + 1))
     return []
 

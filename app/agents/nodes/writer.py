@@ -23,6 +23,11 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
                 chunks.append(text)
                 available_citations.append(cit)
 
+    # Limitar aos 10 chunks mais relevantes para garantir TTFT rápido e evitar inchaço de payload
+    MAX_WRITER_CHUNKS = 10
+    chunks = chunks[:MAX_WRITER_CHUNKS]
+    available_citations = available_citations[:MAX_WRITER_CHUNKS]
+
     # 2. Construir contexto para o redator
     context_str = ""
     for idx, (text, cit) in enumerate(zip(chunks, available_citations)):

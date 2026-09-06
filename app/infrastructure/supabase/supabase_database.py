@@ -388,6 +388,8 @@ class SupabaseDatabase(DatabaseGateway):
 
     async def get_second_chamber_catalog(self) -> list[dict]:
         from app.core.config import settings
+        if getattr(self, "_second_chamber_cache", None) is not None:
+            return self._second_chamber_cache
         try:
             loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
@@ -398,7 +400,8 @@ class SupabaseDatabase(DatabaseGateway):
                     .eq("chamber", 2)
                 )
             )
-            return response.data or []
+            self._second_chamber_cache = response.data or []
+            return self._second_chamber_cache
         except Exception as e:
             if settings.app_env == "development":
                 print(f"DEBUG DB: get_second_chamber_catalog falhou ({e}). Retornando mock em dev.")

@@ -216,6 +216,8 @@ class ConversationService:
 
     async def generate_title_async(self, conversation_id: str, initial_message: str):
         """Asynchronously updates the conversation title based on the first message if still default."""
+        # Non-blocking pause so title generation does not compete with RAG orchestrator on first second
+        await asyncio.sleep(2.0)
         from app.agents.nodes.utils import get_llm
         loop = asyncio.get_running_loop()
         

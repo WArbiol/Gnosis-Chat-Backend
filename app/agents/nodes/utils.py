@@ -35,7 +35,7 @@ def get_reranker():
 
 def get_configurable_llm(config: RunnableConfig):
     configurable = config.get("configurable") or {}
-    return configurable.get("llm") or get_llm()
+    return configurable.get("llm") or configurable.get("llm_gateway") or get_llm()
 
 def get_configurable_vector_store(config: RunnableConfig):
     configurable = config.get("configurable") or {}

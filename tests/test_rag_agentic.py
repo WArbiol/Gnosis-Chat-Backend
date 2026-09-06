@@ -453,7 +453,7 @@ async def test_critique_allows_up_to_two_retries_before_forcing_sufficient():
         feedback="Trechos insuficientes para responder."
     )
 
-    config = RunnableConfig(configurable={"llm_gateway": llm})
+    config = RunnableConfig(configurable={"llm": llm, "llm_gateway": llm})
 
     # --- Turno 1 (Primeira Busca): critique_loops = 0 ---
     state_turn1 = {

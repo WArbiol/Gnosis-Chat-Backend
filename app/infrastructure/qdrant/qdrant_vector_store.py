@@ -35,7 +35,13 @@ class QdrantVectorStore(VectorStoreGateway):
         # Carregar acervo de livros e autores únicos para resolução dinâmica de filtros de forma preguiçosa (lazy)
         self.unique_books: list[str] = []
         self.unique_authors: list[str] = []
-        self._cache_file = os.path.join(project_root, "data/metadata_cache.json")
+        
+        core_cache = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "core", "metadata_cache.json"))
+        data_cache = os.path.join(project_root, "data", "metadata_cache.json")
+        self._cache_file = core_cache if os.path.exists(core_cache) else data_cache
+        
+        # Pré-carregar na inicialização para latência instantânea (0ms) nas queries
+        self._load_metadata_cache()
 
     def _normalize_text(self, text: str) -> str:
         """Remove acentos, converte para minúsculas e remove espaços extras para correspondência difusa."""
@@ -51,57 +57,52 @@ class QdrantVectorStore(VectorStoreGateway):
         if self.unique_books and self.unique_authors:
             return
             
-        # Tenta carregar do arquivo JSON local para evitar leitura pesada no Qdrant
-        if os.path.exists(self._cache_file):
-            try:
-                with open(self._cache_file, "r", encoding="utf-8") as f:
-                    cached = json.load(f)
-                    self.unique_books = cached.get("books", [])
-                    self.unique_authors = cached.get("authors", [])
-                    if self.unique_books and self.unique_authors:
-                        return
-            except Exception:
-                pass
+        # 1. Tenta carregar do arquivo JSON local (app/core ou data/) para evitar leitura pesada no Qdrant
+        candidate_paths = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "core", "metadata_cache.json")),
+            self._cache_file,
+            os.path.join(os.getcwd(), "data", "metadata_cache.json"),
+            os.path.join(os.getcwd(), "app", "core", "metadata_cache.json"),
+        ]
+        for path in candidate_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        cached = json.load(f)
+                        self.unique_books = cached.get("books", [])
+                        self.unique_authors = cached.get("authors", [])
+                        if self.unique_books and self.unique_authors:
+                            return
+                except Exception:
+                    pass
                 
-        # Se não houver cache local ou estiver vazio, busca do Qdrant
+        # 2. Fallback de emergência caso nenhum arquivo exista (limitado a 1 página para evitar travamento de minutos)
         unique_books = set()
         unique_authors = set()
-        offset = None
         
         try:
-            while True:
-                response = self.client.scroll(
-                    collection_name=self.books_collection,
-                    limit=2000,
-                    offset=offset,
-                    with_payload=["book_name", "author"],
-                    with_vectors=False
-                )
-                points, next_offset = response
-                for p in points:
-                    payload = p.payload or {}
-                    meta = payload.get("metadata") or {}
-                    
-                    b = meta.get("book_name") or payload.get("book_name")
-                    a = meta.get("author") or payload.get("author")
-                    if b:
-                        unique_books.add(b)
-                    if a:
-                        unique_authors.add(a)
-                if not next_offset:
-                    break
-                offset = next_offset
+            response = self.client.scroll(
+                collection_name=self.books_collection,
+                limit=1000,
+                with_payload=["book_name", "author"],
+                with_vectors=False
+            )
+            points, _ = response
+            for p in points:
+                payload = p.payload or {}
+                meta = payload.get("metadata") or {}
                 
-            self.unique_books = list(unique_books)
-            self.unique_authors = list(unique_authors)
+                b = meta.get("book_name") or payload.get("book_name")
+                a = meta.get("author") or payload.get("author")
+                if b:
+                    unique_books.add(b)
+                if a:
+                    unique_authors.add(a)
             
-            # Salva no arquivo JSON local para as próximas inicializações
-            os.makedirs(os.path.dirname(self._cache_file), exist_ok=True)
-            with open(self._cache_file, "w", encoding="utf-8") as f:
-                json.dump({"books": self.unique_books, "authors": self.unique_authors}, f, ensure_ascii=False, indent=2)
-                
+            self.unique_books = sorted(list(unique_books))
+            self.unique_authors = sorted(list(unique_authors))
         except Exception:
-            # Fallback silencioso se o Qdrant local estiver bloqueado ou não inicializado
+            # Fallback silencioso se o Qdrant estiver inacessível
             pass
 
     def _resolve_approximate(self, inferred_items: list[str], unique_items: list[str]) -> list[str]:

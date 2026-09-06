@@ -49,5 +49,6 @@ data/qdrant_db/
 data/ingest_checkpoint.json
 data/processing.log
 data/metadata_cache.json
+data/suggested_questions*.json
 .langgraph_api/
 scratch/
