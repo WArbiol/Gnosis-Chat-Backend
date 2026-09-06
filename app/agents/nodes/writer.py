@@ -23,8 +23,8 @@ async def writer_node(state: GraphState, config: RunnableConfig) -> dict[str, An
                 chunks.append(text)
                 available_citations.append(cit)
 
-    # Limitar aos 5 chunks mais relevantes para garantir TTFT instantâneo e prefill leve
-    MAX_WRITER_CHUNKS = 5
+    # Limitar aos 10 chunks mais relevantes para garantir amplitude de citações e profundidade teológica
+    MAX_WRITER_CHUNKS = 10
     chunks = chunks[:MAX_WRITER_CHUNKS]
     available_citations = available_citations[:MAX_WRITER_CHUNKS]
 
