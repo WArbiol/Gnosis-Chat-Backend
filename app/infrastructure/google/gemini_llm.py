@@ -70,7 +70,7 @@ class GeminiLLM(LLMGateway):
         model: str,
         contents: Any,
         config: types.GenerateContentConfig,
-        timeout: float = 7.0
+        timeout: float = 5.0
     ) -> Any:
         try:
             return await asyncio.wait_for(
@@ -113,7 +113,8 @@ class GeminiLLM(LLMGateway):
                     response = await self._execute_generate_content(
                         model=model,
                         contents=prompt,
-                        config=config
+                        config=config,
+                        timeout=7.0
                     )
                     return response.text or ""
                 except Exception as e:
