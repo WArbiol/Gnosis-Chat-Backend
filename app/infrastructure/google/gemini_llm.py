@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Type, AsyncGenerator
@@ -20,11 +21,21 @@ def is_retryable_error(exception: Exception) -> bool:
 
 
 def is_overload_or_spike(exception: Exception) -> bool:
-    """Identifica especificamente erros de sobrecarga (503), picos de tráfego e limite de cota (429)."""
+    """Identifica especificamente erros de sobrecarga (503), picos de tráfego, limite de cota (429) e timeouts de fila."""
+    if isinstance(exception, (TimeoutError, asyncio.TimeoutError)):
+        return True
     if isinstance(exception, APIError):
         return exception.code in [429, 502, 503, 504]
     err_str = str(exception).lower()
-    return any(k in err_str for k in ["503", "429", "overloaded", "resource_exhausted", "unavailable", "spikes"])
+    return any(k in err_str for k in ["503", "429", "overloaded", "resource_exhausted", "unavailable", "spikes", "timeout"])
+
+
+def is_embedding_retryable(exception: Exception) -> bool:
+    """Retry para embeddings em caso de 429 (quota burst/rate limit) ou 503 temporários."""
+    if isinstance(exception, APIError):
+        return exception.code in [429, 500, 502, 503, 504]
+    err_str = str(exception).lower()
+    return any(k in err_str for k in ["429", "503", "resource_exhausted", "unavailable", "quota", "spikes"])
 
 
 class GeminiLLM(LLMGateway):
@@ -146,7 +157,22 @@ class GeminiLLM(LLMGateway):
                         contents=prompt,
                         config=config
                     )
-                    async for chunk in response_stream:
+                    ait = response_stream.__aiter__()
+                    # Timeout de 8s para o primeiro chunk: evita ficar preso 40s se o Google estiver enfileirando requisições
+                    try:
+                        first_chunk = await asyncio.wait_for(ait.__anext__(), timeout=8.0)
+                        if first_chunk.text:
+                            yielded_any = True
+                            yield first_chunk.text
+                    except StopAsyncIteration:
+                        return
+                    except (asyncio.TimeoutError, TimeoutError):
+                        logger.warning(
+                            f"⏱️ [LLM Stream Timeout] Modelo {model} não enviou primeiro token em 8s. Acionando fallback..."
+                        )
+                        raise TimeoutError(f"Timeout de 8s aguardando primeiro token do modelo {model}")
+
+                    async for chunk in ait:
                         if chunk.text:
                             yielded_any = True
                             yield chunk.text
@@ -225,9 +251,9 @@ class GeminiLLM(LLMGateway):
         return json.loads(text_data)
 
     @retry(
-        retry=retry_if_exception(is_retryable_error),
+        retry=retry_if_exception(is_embedding_retryable),
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
+        wait=wait_exponential(multiplier=1.2, min=1.2, max=4),
         reraise=True
     )
     async def generate_embeddings(self, text: str) -> list[float]:

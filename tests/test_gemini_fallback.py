@@ -131,3 +131,24 @@ async def test_generate_text_stream_double_fallback_on_503():
     assert mock_stream_call.call_args_list[1].kwargs["model"] == "gemini-3.7-flash"
     assert mock_stream_call.call_args_list[2].kwargs["model"] == "gemini-2.5-flash"
 
+
+@pytest.mark.asyncio
+async def test_generate_embeddings_retry_on_429():
+    """Garante que erro 429 de quota/burst no embed_content seja retentado com sucesso."""
+    llm = GeminiLLM()
+
+    err_429 = APIError(429, {"error": {"message": "Resource exhausted"}})
+    mock_success = MagicMock()
+    mock_emb = MagicMock()
+    mock_emb.values = [0.1, 0.2, 0.3]
+    mock_success.embeddings = [mock_emb]
+
+    mock_embed = AsyncMock(side_effect=[err_429, mock_success])
+    llm.client.aio.models.embed_content = mock_embed
+
+    result = await llm.generate_embeddings("texto para vetor")
+
+    assert result == [0.1, 0.2, 0.3]
+    assert mock_embed.call_count == 2
+
+

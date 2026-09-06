@@ -121,12 +121,24 @@ async def researcher_node(state: GraphState, config: RunnableConfig) -> dict[str
     else:
         adaptive_top_n = 20
 
-    # 1. Executar todas as pesquisas de forma assíncrona concorrente (máx. 6)
+    # 1. Executar pesquisas assíncronas com leve espaçamento entre sub-queries para prevenir burst rate-limits (429) no embedding
+    async def _execute_with_delay(index: int, query_text: str) -> ResearchResult:
+        if index > 0:
+            await asyncio.sleep(index * 0.08)
+        return await process_single_query(
+            query_text,
+            metadata_filters,
+            llm,
+            vector_store,
+            reranker,
+            skip_transform=skip_transform,
+            top_n=adaptive_top_n
+        )
+
     tasks = [
-        process_single_query(sq, metadata_filters, llm, vector_store, reranker, skip_transform=skip_transform, top_n=adaptive_top_n)
-        for sq in sub_queries[:6] # Limite de segurança de 6 sub-queries paralelas
+        _execute_with_delay(i, sq)
+        for i, sq in enumerate(sub_queries[:6])
     ]
-    
     results = await asyncio.gather(*tasks)
 
     # 2. Incrementar contador de chamadas
