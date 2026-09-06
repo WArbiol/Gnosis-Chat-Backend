@@ -241,9 +241,14 @@ class AskRagUseCase:
                 if msg["type"] == "done":
                     break
                 elif msg["type"] == "error":
+                    raw_err = str(msg["error"])
+                    if any(k in raw_err.lower() for k in ["timeout", "overloaded", "unavailable", "503", "429", "spikes"]):
+                        user_msg = "Os servidores de inteligência artificial estão com alta demanda temporária. Por favor, tente enviar sua pergunta novamente em alguns instantes."
+                    else:
+                        user_msg = f"Não foi possível concluir a resposta: {raw_err}"
                     yield {
                         "event": "error",
-                        "message": f"Erro interno no processamento: {msg['error']}"
+                        "message": user_msg
                     }
                     break
                 elif msg["type"] == "final_payload":

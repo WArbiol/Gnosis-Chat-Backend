@@ -39,15 +39,14 @@ def is_embedding_retryable(exception: Exception) -> bool:
 
 
 class GeminiLLM(LLMGateway):
-    """Implementação concreta do LLMGateway usando o SDK google-genai do Google com resiliência em cascata de duas rodadas."""
+    """Implementação simplificada e robusta do LLMGateway com cascata direta e timeouts saudáveis."""
 
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.google_api_key)
-        # Cascata de modelos em múltiplas rodadas:
-        # Se um modelo sofrer pico 503, tenta o próximo imediatamente.
-        # Se todos sofrerem pico simultâneo no Google, aguarda 1.5s de alívio e tenta novamente.
-        self.premium_models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash"]
-        self.lite_models = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash"]
+        # Cascata direta e estável:
+        # Primário (3.8) -> Fallback Estável (3.5) -> Fallback de Alta Disponibilidade (2.5)
+        self.premium_models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
+        self.lite_models = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"]
 
     @property
     def premium_model(self) -> str:
@@ -70,7 +69,7 @@ class GeminiLLM(LLMGateway):
         model: str,
         contents: Any,
         config: types.GenerateContentConfig,
-        timeout: float = 5.0
+        timeout: float = 25.0
     ) -> Any:
         try:
             return await asyncio.wait_for(
@@ -94,38 +93,32 @@ class GeminiLLM(LLMGateway):
         temperature: float = 0.2,
         use_premium_model: bool = False
     ) -> str:
-        import asyncio
         models = self.premium_models if use_premium_model else self.lite_models
-
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction
         )
 
         last_error = None
-        for attempt_round in range(2):
-            if attempt_round > 0:
-                logger.warning("⏳ [LLM Fallback] Todos os modelos em pico no Google. Aguardando 1.5s para 2ª rodada...")
-                await asyncio.sleep(1.5)
+        for i, model in enumerate(models):
+            try:
+                response = await self._execute_generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                    timeout=25.0
+                )
+                return response.text or ""
+            except Exception as e:
+                last_error = e
+                if not is_overload_or_spike(e):
+                    logger.error(f"Erro irrecuperável em generate_text com {model}: {e}")
+                    raise e
 
-            for i, model in enumerate(models):
-                try:
-                    response = await self._execute_generate_content(
-                        model=model,
-                        contents=prompt,
-                        config=config,
-                        timeout=7.0
-                    )
-                    return response.text or ""
-                except Exception as e:
-                    last_error = e
-                    if not is_overload_or_spike(e):
-                        logger.error(f"Erro irrecuperável em generate_text com {model}: {e}")
-                        raise e
-
-                    next_model = models[i + 1] if i + 1 < len(models) else models[0]
+                next_model = models[i + 1] if i + 1 < len(models) else None
+                if next_model:
                     logger.warning(
-                        f"⚠️ [LLM Fallback R{attempt_round + 1}] Modelo {model} sobrecarregado ({getattr(e, 'code', '503/spikes')}). "
+                        f"⚠️ [LLM Fallback] Modelo {model} indisponível ({getattr(e, 'code', 'spikes/timeout')}). "
                         f"Tentando {next_model}..."
                     )
 
@@ -140,57 +133,51 @@ class GeminiLLM(LLMGateway):
         temperature: float = 0.2,
         use_premium_model: bool = False
     ) -> AsyncGenerator[str, None]:
-        import asyncio
         models = self.premium_models if use_premium_model else self.lite_models
-
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction
         )
 
         last_error = None
-        for attempt_round in range(2):
-            if attempt_round > 0:
-                logger.warning("⏳ [LLM Stream Fallback] Todos os modelos em pico no Google. Aguardando 1.5s para 2ª rodada...")
-                await asyncio.sleep(1.5)
-
-            for i, model in enumerate(models):
-                yielded_any = False
+        for i, model in enumerate(models):
+            yielded_any = False
+            try:
+                response_stream = await self.client.aio.models.generate_content_stream(
+                    model=model,
+                    contents=prompt,
+                    config=config
+                )
+                ait = response_stream.__aiter__()
+                # Timeout de 35s para o primeiro chunk: acomoda prefill com folga em horários de pico
                 try:
-                    response_stream = await self.client.aio.models.generate_content_stream(
-                        model=model,
-                        contents=prompt,
-                        config=config
-                    )
-                    ait = response_stream.__aiter__()
-                    # Timeout de 15s para o primeiro chunk: dá tempo ao Google para o prefill de prompts longos (com 10 chunks), mas evita travar 40s+ se o modelo estiver em fila
-                    try:
-                        first_chunk = await asyncio.wait_for(ait.__anext__(), timeout=15.0)
-                        if first_chunk.text:
-                            yielded_any = True
-                            yield first_chunk.text
-                    except StopAsyncIteration:
-                        return
-                    except (asyncio.TimeoutError, TimeoutError):
-                        logger.warning(
-                            f"⏱️ [LLM Stream Timeout] Modelo {model} não enviou primeiro token em 15s. Acionando fallback..."
-                        )
-                        raise TimeoutError(f"Timeout de 15s aguardando primeiro token do modelo {model}")
-
-                    async for chunk in ait:
-                        if chunk.text:
-                            yielded_any = True
-                            yield chunk.text
+                    first_chunk = await asyncio.wait_for(ait.__anext__(), timeout=35.0)
+                    if first_chunk.text:
+                        yielded_any = True
+                        yield first_chunk.text
+                except StopAsyncIteration:
                     return
-                except Exception as e:
-                    last_error = e
-                    if yielded_any or not is_overload_or_spike(e):
-                        logger.error(f"Erro irrecuperável no streaming com modelo {model}: {e}")
-                        raise e
-
-                    next_model = models[i + 1] if i + 1 < len(models) else models[0]
+                except (asyncio.TimeoutError, TimeoutError):
                     logger.warning(
-                        f"⚠️ [LLM Stream Fallback R{attempt_round + 1}] Modelo {model} sobrecarregado ({getattr(e, 'code', '503/spikes')}). "
+                        f"⏱️ [LLM Stream Timeout] Modelo {model} não enviou primeiro token em 35s. Acionando fallback..."
+                    )
+                    raise TimeoutError(f"Timeout de 35s aguardando primeiro token do modelo {model}")
+
+                async for chunk in ait:
+                    if chunk.text:
+                        yielded_any = True
+                        yield chunk.text
+                return
+            except Exception as e:
+                last_error = e
+                if yielded_any or not is_overload_or_spike(e):
+                    logger.error(f"Erro irrecuperável no streaming com modelo {model}: {e}")
+                    raise e
+
+                next_model = models[i + 1] if i + 1 < len(models) else None
+                if next_model:
+                    logger.warning(
+                        f"⚠️ [LLM Stream Fallback] Modelo {model} sobrecarregado ({getattr(e, 'code', 'spikes/timeout')}). "
                         f"Tentando {next_model} em tempo real..."
                     )
 
@@ -205,9 +192,7 @@ class GeminiLLM(LLMGateway):
         temperature: float = 0.1,
         use_premium_model: bool = False
     ) -> Any:
-        import asyncio
         models = self.premium_models if use_premium_model else self.lite_models
-
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction,
@@ -217,37 +202,32 @@ class GeminiLLM(LLMGateway):
 
         response = None
         last_error = None
-        for attempt_round in range(2):
-            if attempt_round > 0:
-                logger.warning("⏳ [LLM JSON Fallback] Todos os modelos em pico no Google. Aguardando 1.5s para 2ª rodada...")
-                await asyncio.sleep(1.5)
+        for i, model in enumerate(models):
+            try:
+                response = await self._execute_generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                    timeout=25.0
+                )
+                break
+            except Exception as e:
+                last_error = e
+                if not is_overload_or_spike(e):
+                    logger.error(f"Erro irrecuperável em generate_json com {model}: {e}")
+                    raise e
 
-            for i, model in enumerate(models):
-                try:
-                    response = await self._execute_generate_content(
-                        model=model,
-                        contents=prompt,
-                        config=config
-                    )
-                    break
-                except Exception as e:
-                    last_error = e
-                    if not is_overload_or_spike(e):
-                        logger.error(f"Erro irrecuperável em generate_json com {model}: {e}")
-                        raise e
-
-                    next_model = models[i + 1] if i + 1 < len(models) else models[0]
+                next_model = models[i + 1] if i + 1 < len(models) else None
+                if next_model:
                     logger.warning(
-                        f"⚠️ [LLM JSON Fallback R{attempt_round + 1}] Modelo {model} indisponível ({getattr(e, 'code', '503/spikes')}). "
+                        f"⚠️ [LLM JSON Fallback] Modelo {model} indisponível ({getattr(e, 'code', 'spikes/timeout')}). "
                         f"Tentando {next_model}..."
                     )
-            if response is not None:
-                break
 
         if response is None:
             if last_error:
                 raise last_error
-            raise RuntimeError("Nenhum modelo respondeu ao generate_json após rodadas de fallback.")
+            raise RuntimeError("Nenhum modelo respondeu ao generate_json após fallback.")
 
         text_data = response.text or "{}"
         if hasattr(response_schema, "model_validate_json"):
