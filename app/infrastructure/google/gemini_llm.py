@@ -163,9 +163,9 @@ class GeminiLLM(LLMGateway):
                         config=config
                     )
                     ait = response_stream.__aiter__()
-                    # Timeout de 8s para o primeiro chunk: evita ficar preso 40s se o Google estiver enfileirando requisições
+                    # Timeout de 15s para o primeiro chunk: dá tempo ao Google para o prefill de prompts longos (com 10 chunks), mas evita travar 40s+ se o modelo estiver em fila
                     try:
-                        first_chunk = await asyncio.wait_for(ait.__anext__(), timeout=8.0)
+                        first_chunk = await asyncio.wait_for(ait.__anext__(), timeout=15.0)
                         if first_chunk.text:
                             yielded_any = True
                             yield first_chunk.text
@@ -173,9 +173,9 @@ class GeminiLLM(LLMGateway):
                         return
                     except (asyncio.TimeoutError, TimeoutError):
                         logger.warning(
-                            f"⏱️ [LLM Stream Timeout] Modelo {model} não enviou primeiro token em 8s. Acionando fallback..."
+                            f"⏱️ [LLM Stream Timeout] Modelo {model} não enviou primeiro token em 15s. Acionando fallback..."
                         )
-                        raise TimeoutError(f"Timeout de 8s aguardando primeiro token do modelo {model}")
+                        raise TimeoutError(f"Timeout de 15s aguardando primeiro token do modelo {model}")
 
                     async for chunk in ait:
                         if chunk.text:
