@@ -46,7 +46,7 @@ class GeminiLLM(LLMGateway):
         # Cascata direta e estável:
         # Primário (3.8) -> Fallback Estável (3.5) -> Fallback de Alta Disponibilidade (2.5)
         self.premium_models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
-        self.lite_models = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"]
+        self.lite_models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
 
     @property
     def premium_model(self) -> str:
