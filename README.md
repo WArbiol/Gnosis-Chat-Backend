@@ -64,18 +64,18 @@ Query lifecycles are coordinated by a deterministic state machine built on **Lan
 
 ```mermaid
 flowchart TD
-    Start([Incoming User Query]) --> Orch[Orchestrator<br/><i>Gemini 3.5 Flash Lite</i>]
+    Start(["Incoming User Query"]) --> Orch["Orchestrator<br/>Gemini 3.5 Flash Lite"]
     
-    Orch -->|Conceptual Question / RAG| Res[Researcher<br/><i>Qdrant + Vertex AI Ranking</i>]
-    Orch -->|Chit-chat / Greetings| Direct[Direct Response<br/><i>Gemini 3.5 Flash Lite</i>]
-    Orch -->|Ambiguous / Clarification| AskUser[Ask User<br/><i>Human-in-the-Loop</i>]
+    Orch -->|"Conceptual Question / RAG"| Res["Researcher<br/>Qdrant + Vertex AI Ranking"]
+    Orch -->|"Chit-chat / Greetings"| Direct["Direct Response<br/>Gemini 3.5 Flash Lite"]
+    Orch -->|"Ambiguous / Clarification"| AskUser["Ask User<br/>Human-in-the-Loop"]
     
-    Res --> Crit[Critique<br/><i>Gemini 3.5 Flash Lite</i>]
+    Res --> Crit["Critique<br/>Gemini 3.5 Flash Lite"]
     
-    Crit -->|Insufficient / Refine sub-queries| Res
-    Crit -->|Sufficient or Retry Limit Reached| Writer[Writer<br/><i>Gemini 3.8 Flash (Streaming)</i>]
+    Crit -->|"Insufficient / Refine sub-queries"| Res
+    Crit -->|"Sufficient or Retry Limit Reached"| Writer["Writer<br/>Gemini 3.8 Flash - Streaming"]
     
-    Direct --> End([End / SSE Stream])
+    Direct --> End(["End / SSE Stream"])
     AskUser --> End
     Writer --> End
 ```
